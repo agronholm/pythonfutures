@@ -1,0 +1,25 @@
+"""
+Abstract
+
+    Python currently has powerful primitives to construct multi-threaded
+    applications but parallelizing simple functions requires a lot of
+    setup work i.e. explicitly launching threads, constructing a
+    work/results queue, and waiting for completion or some other
+    termination condition (e.g. exception, success). It is also hard to
+    manage the global . This PEP proposes the addition 
+
+
+    Python currently distinguishes between two kinds of integers
+    (ints): regular or short ints, limited by the size of a C long
+    (typically 32 or 64 bits), and long ints, which are limited only
+    by available memory.  When operations on short ints yield results
+    that don't fit in a C long, they raise an error.  There are some
+    other distinctions too.  This PEP proposes to do away with most of
+    the differences in semantics, unifying the two types from the
+    perspective of the Python user.
+
+
+Abstract
+
+    
+"""
