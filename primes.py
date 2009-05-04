@@ -22,7 +22,7 @@ def sequential():
     return list(map(is_prime, PRIMES))
 
 def with_process_pool_executor():
-    executor = futures.ProcessPoolExecutor()
+    executor = futures.ProcessPoolExecutor(10)
     try:
         return list(executor.map(is_prime, PRIMES))
     finally:
@@ -39,8 +39,11 @@ def main():
     for name, fn in [('sequential', sequential),
                      ('processes', with_process_pool_executor),
                      ('threads', with_thread_pool_executor)]:
+        print('%s: ' % name.ljust(12), end='')
         start = time.time()
-        fn()
-        print('%s: %.2f seconds' % (name.ljust(10), time.time() - start))
+        if fn() != [True] * len(PRIMES):
+            print('failed')
+        else:
+            print('%.2f seconds' % (time.time() - start))
 
 main()
