@@ -4,8 +4,9 @@ from test.support import verbose
 import unittest
 import threading
 import time
+import multiprocessing
 
-import futures.thread as threaded_futures
+import futures
 
 class Call(object):
     def __init__(self, manual_finish=False):
@@ -27,20 +28,16 @@ class Call(object):
     def __call__(self):
         if self._called_event.is_set(): print('called twice')
 
-        print('Doing call...')
         self._called_event.set()
         self._can_finished.wait()
-        print('About to return...')
         return 42
 
 class ExceptionCall(Call):
     def __call__(self):
         assert not self._called_event.is_set(), 'already called'
 
-        print('Doing exception call...')
         self._called_event.set()
         self._can_finished.wait()
-        print('About to raise...')
         raise ZeroDivisionError()
 
 class FutureStub(object):
@@ -60,7 +57,7 @@ class FutureStub(object):
 
 class ShutdownTest(unittest.TestCase):
     def test_run_after_shutdown(self):
-        self.executor = threaded_futures.ThreadPoolExecutor(max_threads=1)
+        self.executor = futures.ThreadPoolExecutor(max_threads=1)
 
         call1 = Call()
         self.executor.shutdown()
@@ -69,14 +66,14 @@ class ShutdownTest(unittest.TestCase):
                           [call1])
 
     def test_threads_terminate(self):
-        self.executor = threaded_futures.ThreadPoolExecutor(max_threads=5)
+        self.executor = futures.ThreadPoolExecutor(max_threads=5)
 
         call1 = Call(manual_finish=True)
         call2 = Call(manual_finish=True)
         call3 = Call(manual_finish=True)
 
         self.executor.run([call1, call2, call3],
-                          run_until=threaded_futures.RETURN_IMMEDIATELY)
+                          run_until=futures.RETURN_IMMEDIATELY)
 
         call1.wait_on_called()
         call2.wait_on_called()
@@ -92,40 +89,36 @@ class ShutdownTest(unittest.TestCase):
             t.join()
             
 
-class ConcurrentWaitsTest(unittest.TestCase):
+class WaitsTest(unittest.TestCase):
     def test(self):
         def aaa():
-            fs.wait(run_until=threaded_futures.ALL_COMPLETED)
+            fs.wait(run_until=futures.ALL_COMPLETED)
             self.assertTrue(f1.done())
             self.assertTrue(f2.done())
             self.assertTrue(f3.done())
             self.assertTrue(f4.done())
 
         def bbb():
-            fs.wait(run_until=threaded_futures.FIRST_COMPLETED)
+            fs.wait(run_until=futures.FIRST_COMPLETED)
             self.assertTrue(f1.done())
             self.assertFalse(f2.done())
             self.assertFalse(f3.done())
             self.assertFalse(f4.done())
 
         def ccc():
-            fs.wait(run_until=threaded_futures.FIRST_EXCEPTION)
+            fs.wait(run_until=futures.FIRST_EXCEPTION)
             self.assertTrue(f1.done())
             self.assertTrue(f2.done())
-            print('fs:', fs)
-            print(f1, f2, f3, f4)
             self.assertFalse(f3.done())
             self.assertFalse(f4.done())
-
-        executor = threaded_futures.ThreadPoolExecutor(max_threads=1)
 
         call1 = Call(manual_finish=True)
         call2 = ExceptionCall(manual_finish=True)
         call3 = Call(manual_finish=True)
         call4 = Call()
 
-        fs = executor.run([call1, call2, call3, call4],
-                          run_until=threaded_futures.RETURN_IMMEDIATELY)
+        fs = self.executor.run([call1, call2, call3, call4],
+                          run_until=futures.RETURN_IMMEDIATELY)
         f1, f2, f3, f4 = fs
 
         threads = []
@@ -144,15 +137,18 @@ class ConcurrentWaitsTest(unittest.TestCase):
         call4.set_can()
 
         for t in threads:
-            print('join')
             t.join()
-        print('shutdown')
-        executor.shutdown()
-        print('done shutdown')
+        self.executor.shutdown()
+
+class ThreadPoolWaitTests(WaitsTest):
+    executor = futures.ThreadPoolExecutor(max_threads=1)
+
+class ProcessPoolWaitTests(WaitsTest):
+    executor = futures.ProcessPoolExecutor(max_processes=1)
 
 class CancelTests(unittest.TestCase):
     def test_cancel_states(self):
-        executor = threaded_futures.ThreadPoolExecutor(max_threads=1)
+        executor = futures.ThreadPoolExecutor(max_threads=1)
 
         call1 = Call(manual_finish=True)
         call2 = Call()
@@ -160,7 +156,7 @@ class CancelTests(unittest.TestCase):
         call4 = Call()
 
         fs = executor.run([call1, call2, call3, call4],
-                          run_until=threaded_futures.RETURN_IMMEDIATELY)
+                          run_until=futures.RETURN_IMMEDIATELY)
         f1, f2, f3, f4 = fs
 
         call1.wait_on_called()
@@ -177,13 +173,13 @@ class CancelTests(unittest.TestCase):
         self.assertEqual(f4.done(), True)
 
         call1.set_can()
-        fs.wait(run_until=threaded_futures.ALL_COMPLETED)
+        fs.wait(run_until=futures.ALL_COMPLETED)
         self.assertEqual(f1.result(), 42)
-        self.assertRaises(threaded_futures.CancelledException, f2.result)
-        self.assertRaises(threaded_futures.CancelledException, f2.exception)
+        self.assertRaises(futures.CancelledException, f2.result)
+        self.assertRaises(futures.CancelledException, f2.exception)
         self.assertEqual(f3.result(), 42)
-        self.assertRaises(threaded_futures.CancelledException, f4.result)
-        self.assertRaises(threaded_futures.CancelledException, f4.exception)
+        self.assertRaises(futures.CancelledException, f4.result)
+        self.assertRaises(futures.CancelledException, f4.exception)
 
         self.assertEqual(call2.called(), False)
         self.assertEqual(call4.called(), False)
@@ -191,32 +187,28 @@ class CancelTests(unittest.TestCase):
 
     def test_wait_for_individual_cancel(self):
         def end_call():
-            print ('Here1')
             time.sleep(1)
-            print ('Here2')
             f2.cancel()
-            print ('Here3')
             call1.set_can()
-            print ('Here4')
 
-        executor = threaded_futures.ThreadPoolExecutor(max_threads=1)
+        executor = futures.ThreadPoolExecutor(max_threads=1)
 
         call1 = Call(manual_finish=True)
         call2 = Call()
 
-        fs = executor.run([call1, call2], run_until=threaded_futures.RETURN_IMMEDIATELY)
+        fs = executor.run([call1, call2], run_until=futures.RETURN_IMMEDIATELY)
         f1, f2 = fs
 
         call1.wait_on_called()
         t = threading.Thread(target=end_call)
         t.start()
-        self.assertRaises(threaded_futures.CancelledException, f2.result)
-        self.assertRaises(threaded_futures.CancelledException, f2.exception)
+        self.assertRaises(futures.CancelledException, f2.result)
+        self.assertRaises(futures.CancelledException, f2.exception)
         t.join()
         executor.shutdown()
 
     def test_cancel_all(self):
-        executor = threaded_futures.ThreadPoolExecutor(max_threads=1)
+        executor = futures.ThreadPoolExecutor(max_threads=1)
 
         call1 = Call(manual_finish=True)
         call2 = Call()
@@ -224,13 +216,11 @@ class CancelTests(unittest.TestCase):
         call4 = Call()
 
         fs = executor.run([call1, call2, call3, call4],
-                          run_until=threaded_futures.RETURN_IMMEDIATELY)
+                          run_until=futures.RETURN_IMMEDIATELY)
         f1, f2, f3, f4 = fs
 
         call1.wait_on_called()
-        print('HERE!!!')
-        self.assertRaises(threaded_futures.TimeoutException, fs.cancel, timeout=0)
-        print('HERE 2!!!')
+        self.assertRaises(futures.TimeoutException, fs.cancel, timeout=0)
         call1.set_can()
         fs.cancel()
 
@@ -241,12 +231,12 @@ class CancelTests(unittest.TestCase):
         executor.shutdown()
 
     def test_cancel_repr(self):
-        executor = threaded_futures.ThreadPoolExecutor(max_threads=1)
+        executor = futures.ThreadPoolExecutor(max_threads=1)
 
         call1 = Call(manual_finish=True)
         call2 = Call()
 
-        fs = executor.run([call1, call2], run_until=threaded_futures.RETURN_IMMEDIATELY)
+        fs = executor.run([call1, call2], run_until=futures.RETURN_IMMEDIATELY)
         f1, f2 = fs
 
         call1.wait_on_called()
@@ -263,7 +253,7 @@ class FutureListTests(unittest.TestCase):
         f4 = FutureStub(cancelled=True, done=True)
 
         fs = [f1, f2, f3, f4]
-        f = threaded_futures.FutureList(fs, None)
+        f = futures.FutureList(fs, None)
 
         self.assertEqual(f.running_futures(), [f1])
         self.assertEqual(f.cancelled_futures(), [f4])
@@ -276,18 +266,18 @@ class FutureListTests(unittest.TestCase):
         f2 = FutureStub(cancelled=False, done=True)
 
         self.assertTrue(
-                threaded_futures.FutureList([f1], None).has_running_futures())
+                futures.FutureList([f1], None).has_running_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f2], None).has_running_futures())
+                futures.FutureList([f2], None).has_running_futures())
 
     def test_has_cancelled_futures(self):
         f1 = FutureStub(cancelled=True, done=True)
         f2 = FutureStub(cancelled=False, done=True)
 
         self.assertTrue(
-                threaded_futures.FutureList([f1], None).has_cancelled_futures())
+                futures.FutureList([f1], None).has_cancelled_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f2], None).has_cancelled_futures())
+                futures.FutureList([f2], None).has_cancelled_futures())
 
     def test_has_done_futures(self):
         f1 = FutureStub(cancelled=True, done=True)
@@ -295,11 +285,11 @@ class FutureListTests(unittest.TestCase):
         f3 = FutureStub(cancelled=False, done=False)
 
         self.assertTrue(
-                threaded_futures.FutureList([f1], None).has_done_futures())
+                futures.FutureList([f1], None).has_done_futures())
         self.assertTrue(
-                threaded_futures.FutureList([f2], None).has_done_futures())
+                futures.FutureList([f2], None).has_done_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f3], None).has_done_futures())
+                futures.FutureList([f3], None).has_done_futures())
 
     def test_has_successful_futures(self):
         f1 = FutureStub(cancelled=False, done=True)
@@ -308,13 +298,13 @@ class FutureListTests(unittest.TestCase):
         f4 = FutureStub(cancelled=True, done=True)
 
         self.assertTrue(
-                threaded_futures.FutureList([f1], None).has_successful_futures())
+                futures.FutureList([f1], None).has_successful_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f2], None).has_successful_futures())
+                futures.FutureList([f2], None).has_successful_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f3], None).has_successful_futures())
+                futures.FutureList([f3], None).has_successful_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f4], None).has_successful_futures())
+                futures.FutureList([f4], None).has_successful_futures())
 
     def test_has_exception_futures(self):
         f1 = FutureStub(cancelled=False, done=True)
@@ -323,13 +313,13 @@ class FutureListTests(unittest.TestCase):
         f4 = FutureStub(cancelled=True, done=True)
 
         self.assertFalse(
-                threaded_futures.FutureList([f1], None).has_exception_futures())
+                futures.FutureList([f1], None).has_exception_futures())
         self.assertTrue(
-                threaded_futures.FutureList([f2], None).has_exception_futures())
+                futures.FutureList([f2], None).has_exception_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f3], None).has_exception_futures())
+                futures.FutureList([f3], None).has_exception_futures())
         self.assertFalse(
-                threaded_futures.FutureList([f4], None).has_exception_futures())
+                futures.FutureList([f4], None).has_exception_futures())
 
     def test_get_item(self):
         f1 = FutureStub(cancelled=False, done=False)
@@ -337,7 +327,7 @@ class FutureListTests(unittest.TestCase):
         f3 = FutureStub(cancelled=False, done=True)
 
         fs = [f1, f2, f3]
-        f = threaded_futures.FutureList(fs, None)
+        f = futures.FutureList(fs, None)
         self.assertEqual(f[0], f1)
         self.assertEqual(f[1], f2)
         self.assertEqual(f[2], f3)
@@ -348,7 +338,7 @@ class FutureListTests(unittest.TestCase):
         f2 = FutureStub(cancelled=False, done=True)
         f3 = FutureStub(cancelled=False, done=True)
 
-        f = threaded_futures.FutureList([f1, f2, f3], None)
+        f = futures.FutureList([f1, f2, f3], None)
         self.assertEqual(len(f), 3)
 
     def test_iter(self):
@@ -357,7 +347,7 @@ class FutureListTests(unittest.TestCase):
         f3 = FutureStub(cancelled=False, done=True)
 
         fs = [f1, f2, f3]
-        f = threaded_futures.FutureList(fs, None)
+        f = futures.FutureList(fs, None)
         self.assertEqual(list(iter(f)), fs)
 
     def test_contains(self):
@@ -365,7 +355,7 @@ class FutureListTests(unittest.TestCase):
         f2 = FutureStub(cancelled=False, done=True)
         f3 = FutureStub(cancelled=False, done=True)
 
-        f = threaded_futures.FutureList([f1, f2], None)
+        f = futures.FutureList([f1, f2], None)
         self.assertTrue(f1 in f)
         self.assertTrue(f2 in f)
         self.assertFalse(f3 in f)
@@ -376,7 +366,7 @@ class FutureListTests(unittest.TestCase):
         exception = FutureStub(cancelled=False, done=True, exception=IOError())
         cancelled = FutureStub(cancelled=True, done=True)
 
-        f = threaded_futures.FutureList(
+        f = futures.FutureList(
                 [running] * 4 + [result] * 3 + [exception] * 2 + [cancelled],
                 None)
 
@@ -385,7 +375,8 @@ class FutureListTests(unittest.TestCase):
                          '[#success=3 #exception=2 #cancelled=1]>')
 def test_main():
     test.support.run_unittest(CancelTests,
-                              ConcurrentWaitsTest,
+#                              ProcessPoolWaitTests,
+                              ThreadPoolWaitTests,
                               FutureListTests,
                               ShutdownTest)
 
