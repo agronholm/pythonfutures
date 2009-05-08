@@ -1,26 +1,61 @@
+import functools
+import logging
 import threading
+import time
 
 FIRST_COMPLETED = 0
 FIRST_EXCEPTION = 1
 ALL_COMPLETED = 2
 RETURN_IMMEDIATELY = 3
 
+# Possible future states
 PENDING = 0
 RUNNING = 1
-CANCELLED = 2
-FINISHED = 3
+CANCELLED = 2               # The future was cancelled...
+CANCELLED_AND_NOTIFIED = 3  # ...and .add_cancelled() was called.
+FINISHED = 4
+
+FUTURE_STATES = [
+    PENDING,
+    RUNNING,
+    CANCELLED,
+    CANCELLED_AND_NOTIFIED,
+    FINISHED
+]
 
 _STATE_TO_DESCRIPTION_MAP = {
     PENDING: "pending",
     RUNNING: "running",
     CANCELLED: "cancelled",
+    CANCELLED_AND_NOTIFIED: "cancelled",
     FINISHED: "finished"
 }
 
-class CancelledException(Exception):
+LOGGER = logging.getLogger("futures")
+_handler = logging.StreamHandler()
+LOGGER.addHandler(_handler)
+del _handler
+
+def set_future_exception(future, event_sink, exception):
+    with future._condition:
+        future._exception = exception
+        with event_sink._condition:
+            future._state = FINISHED
+            event_sink.add_exception()
+        future._condition.notify_all()
+
+def set_future_result(future, event_sink, result):
+    with future._condition:
+        future._result = result
+        with event_sink._condition:
+            future._state = FINISHED
+            event_sink.add_result()
+        future._condition.notify_all()
+
+class CancelledError(Exception):
     pass
 
-class TimeoutException(Exception):
+class TimeoutError(Exception):
     pass
 
 class Future(object):
@@ -48,16 +83,18 @@ class Future(object):
             if self._state in [RUNNING, FINISHED]:
                 return False
 
-            self._state = CANCELLED
+            if self._state not in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                self._state = CANCELLED
+                self._condition.notify_all()
             return True
 
     def cancelled(self):
         with self._condition:
-            return self._state == CANCELLED
+            return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]
 
     def done(self):
         with self._condition:
-            return self._state in [CANCELLED, FINISHED]
+            return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
 
     def __get_result(self):
         if self._exception:
@@ -67,45 +104,35 @@ class Future(object):
 
     def result(self, timeout=None):
         with self._condition:
-            if self._state == CANCELLED:
-                raise CancelledException()
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                raise CancelledError()
             elif self._state == FINISHED:
                 return self.__get_result()
 
             self._condition.wait(timeout)
 
-            if self._state == CANCELLED:
-                raise CancelledException()
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                raise CancelledError()
             elif self._state == FINISHED:
                 return self.__get_result()
             else:
-                raise TimeoutException()
+                raise TimeoutError()
 
     def exception(self, timeout=None):
         with self._condition:
-            if self._state == CANCELLED:
-                raise CancelledException()
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                raise CancelledError()
             elif self._state == FINISHED:
                 return self._exception
 
             self._condition.wait(timeout)
 
-            if self._state == CANCELLED:
-                raise CancelledException()
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                raise CancelledError()
             elif self._state == FINISHED:
                 return self._exception
             else:
-                raise TimeoutException()
-
-class _NullWaitTracker(object):
-    def add_result(self):
-        pass
-
-    def add_exception(self):
-        pass
-
-    def add_cancelled(self):
-        pass
+                raise TimeoutError()
 
 class _FirstCompletedWaitTracker(object):
     def __init__(self):
@@ -122,9 +149,9 @@ class _FirstCompletedWaitTracker(object):
 
 class _AllCompletedWaitTracker(object):
     def __init__(self, pending_calls, stop_on_exception):
-        self.event = threading.Event()
         self.pending_calls = pending_calls
         self.stop_on_exception = stop_on_exception
+        self.event = threading.Event()
 
     def add_result(self):
         self.pending_calls -= 1
@@ -132,9 +159,10 @@ class _AllCompletedWaitTracker(object):
             self.event.set()
 
     def add_exception(self):
-        self.add_result()
         if self.stop_on_exception:
             self.event.set()
+        else:
+            self.add_result()
 
     def add_cancelled(self):
         self.add_result()
@@ -147,85 +175,108 @@ class ThreadEventSink(object):
     def add(self, e):
         self._waiters.append(e)
 
+    def remove(self, e):
+        self._waiters.remove(e)
+
     def add_result(self):
-        with self._condition:
-            for waiter in self._waiters:
-                waiter.add_result()
+        for waiter in self._waiters:
+            waiter.add_result()
 
     def add_exception(self):
-        with self._condition:
-            for waiter in self._waiters:
-                waiter.add_exception()
+        for waiter in self._waiters:
+            waiter.add_exception()
 
     def add_cancelled(self):
-        with self._condition:
-            for waiter in self._waiters:
-                waiter.add_cancelled()
+        for waiter in self._waiters:
+            waiter.add_cancelled()
 
 class FutureList(object):
     def __init__(self, futures, event_sink):
         self._futures = futures
         self._event_sink = event_sink
 
-    def wait(self, timeout=None, run_until=ALL_COMPLETED):
+    def wait(self, timeout=None, return_when=ALL_COMPLETED):
+        if return_when == RETURN_IMMEDIATELY:
+            return
+
         with self._event_sink._condition:
-            if all(f.done() for f in self):
+            # Make a quick exit if every future is already done. This check is
+            # necessary because, if every future is in the
+            # CANCELLED_AND_NOTIFIED or FINISHED state then the WaitTracker will
+            # never receive any 
+            if all(f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
+                   for f in self):
                 return
 
-            if run_until == FIRST_COMPLETED:
-                m = _FirstCompletedWaitTracker()
-            elif run_until == FIRST_EXCEPTION:
-                m = _AllCompletedWaitTracker(len(self), stop_on_exception=True)
-            elif run_until == ALL_COMPLETED:
-                m = _AllCompletedWaitTracker(len(self), stop_on_exception=False)
-            elif run_until == RETURN_IMMEDIATELY:
-                m = _NullWaitTracker()
+            if return_when == FIRST_COMPLETED:
+                completed_tracker = _FirstCompletedWaitTracker()
             else:
-                raise ValueError()
+                # Calculate how many events are expected before every future
+                # is complete. This can be done without holding the futures'
+                # locks because a future cannot transition itself into either
+                # of the states being looked for.
+                pending_count = sum(
+                        f._state not in [CANCELLED_AND_NOTIFIED, FINISHED]
+                        for f in self)
 
-            self._event_sink.add(m)
+                if return_when == FIRST_EXCEPTION:
+                    completed_tracker = _AllCompletedWaitTracker(
+                            pending_count, stop_on_exception=True)
+                elif return_when == ALL_COMPLETED:
+                    completed_tracker = _AllCompletedWaitTracker(
+                            pending_count, stop_on_exception=False)
 
-        if run_until != RETURN_IMMEDIATELY:
-            m.event.wait(timeout)
+            self._event_sink.add(completed_tracker)
+
+        try:
+            completed_tracker.event.wait(timeout)
+        finally:
+            self._event_sink.remove(completed_tracker)
 
     def cancel(self, timeout=None):
         for f in self:
             f.cancel()
-        self.wait(timeout=timeout, run_until=ALL_COMPLETED)
+        self.wait(timeout=timeout, return_when=ALL_COMPLETED)
         if any(not f.done() for f in self):
-            raise TimeoutException()
+            raise TimeoutError()
 
     def has_running_futures(self):
-        return bool(self.running_futures())
+        return any(self.running_futures())
 
     def has_cancelled_futures(self):
-        return bool(self.cancelled_futures())
+        return any(self.cancelled_futures())
 
     def has_done_futures(self):
-        return bool(self.done_futures())
+        return any(self.done_futures())
 
     def has_successful_futures(self):
-        return bool(self.successful_futures())
+        return any(self.successful_futures())
 
     def has_exception_futures(self):
-        return bool(self.exception_futures())
-    
-    def running_futures(self):
-        return [f for f in self if not f.done() and not f.cancelled()]
-  
+        return any(self.exception_futures())
+
+    def has_running_futures(self):
+        return any(self.running_futures())
+        
     def cancelled_futures(self):
-        return [f for f in self if f.cancelled()]
+        return (f for f in self
+                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED])
   
     def done_futures(self):
-        return [f for f in self if f.done()]
+        return (f for f in self
+                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED])
 
     def successful_futures(self):
-        return [f for f in self
-                if f.done() and not f.cancelled() and f.exception() is None]
+        return (f for f in self
+                if f._state == FINISHED and f._exception is None)
   
     def exception_futures(self):
-        return [f for f in self if f.done() and f.exception() is not None]
+        return (f for f in self
+                if f._state == FINISHED and f._exception is not None)
   
+    def running_futures(self):
+        return (f for f in self if f._state == RUNNING)
+
     def __getitem__(self, i):
         return self._futures[i]
 
@@ -239,23 +290,64 @@ class FutureList(object):
         return f in self._futures
 
     def __repr__(self):
+        states = {state: 0 for state in FUTURE_STATES}
+        for f in self:
+            states[f._state] += 1
+
         return ('<FutureList #futures=%d '
-                '[#success=%d #exception=%d #cancelled=%d]>' % (
+                '[#pending=%d #cancelled=%d #running=%d #finished=%d]>' % (
                 len(self),
-                len(self.successful_futures()),
-                len(self.exception_futures()),
-                len(self.cancelled_futures())))
+                states[PENDING],
+                states[CANCELLED] + states[CANCELLED_AND_NOTIFIED],
+                states[RUNNING],
+                states[FINISHED]))
 
-import functools
 class Executor(object):
-    def map(self, fn, iter):
+    def run(self, calls, timeout=None, return_when=ALL_COMPLETED):
+        raise NotImplementedError()
+
+    def runXXX(self, calls, timeout=None):
+        """Execute the given calls and
+
+        Arguments:
+        calls: A sequence of functions that will be called without arguments
+               and whose results with be returned.
+        timeout: The maximum number of seconds to wait for the complete results.
+                 None indicates that there is no timeout.
+
+        Yields:
+            The results of the given calls in the order that they are given.
+
+        Exceptions:
+            TimeoutError: if it takes more than timeout 
+        """
+        if timeout is not None:
+            end_time = timeout + time.time()
+
+        fs = self.run(calls, return_when=RETURN_IMMEDIATELY)
+
+        try:
+            for future in fs:
+                if timeout is None:
+                    yield future.result()
+                else:
+                    yield future.result(end_time - time.time())
+        finally:
+            try:
+                fs.cancel(timeout=0)
+            except TimeoutError:
+                pass
+
+    def map(self, fn, iter, timeout=None):
         calls = [functools.partial(fn, a) for a in iter]
-        return self.runXXX(calls)
+        return self.runXXX(calls, timeout)
 
-    def runXXX(self, calls):
-        fs = self.run(calls, timeout=None, run_until=FIRST_EXCEPTION)
+    def shutdown(self):
+        raise NotImplementedError()
 
-        if fs.has_exception_futures():
-            raise fs.exception_futures()[0].exception()
-        else:
-            return [f.result() for f in fs]
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.shutdown()
+        return False

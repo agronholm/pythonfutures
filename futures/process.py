@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 
-from futures._base import RUNNING, FINISHED, Executor, ALL_COMPLETED, ThreadEventSink, Future, FutureList
+from futures._base import (PENDING, RUNNING, CANCELLED,
+                           CANCELLED_AND_NOTIFIED, FINISHED,
+                           ALL_COMPLETED,
+                           LOGGER,
+                           set_future_exception, set_future_result,
+                           Executor, Future, FutureList,ThreadEventSink)
+
 import queue
 import multiprocessing
 import threading
@@ -98,17 +104,13 @@ class ProcessPoolExecutor(Executor):
                 del self._pending_work_items[result_item.work_id]
 
                 if result_item.exception:
-                    with work_item.future._condition:
-                        work_item.future._exception = result_item.exception
-                        work_item.future._state = FINISHED
-                        work_item.future._condition.notify_all()
-                    work_item.completion_tracker.add_exception()
+                    set_future_exception(work_item.future,
+                                         work_item.completion_tracker,
+                                         result_item.exception)
                 else:
-                    with work_item.future._condition:
-                        work_item.future._result = result_item.result
-                        work_item.future._state = FINISHED
-                        work_item.future._condition.notify_all()
-                    work_item.completion_tracker.add_result()
+                    set_future_result(work_item.future,
+                                         work_item.completion_tracker,
+                                         result_item.result)
 
     def _adjust_process_count(self):
         if self._queue_management_thread is None:
@@ -127,7 +129,7 @@ class ProcessPoolExecutor(Executor):
             p.start()
             self._processes.add(p)
 
-    def run(self, calls, timeout=None, run_until=ALL_COMPLETED):
+    def run(self, calls, timeout=None, return_when=ALL_COMPLETED):
         with self._lock:
             if self._shutdown:
                 raise RuntimeError()
@@ -145,7 +147,7 @@ class ProcessPoolExecutor(Executor):
 
             self._adjust_process_count()
             fl = FutureList(futures, event_sink)
-            fl.wait(timeout=timeout, run_until=run_until)
+            fl.wait(timeout=timeout, return_when=return_when)
             return fl
 
     def shutdown(self):

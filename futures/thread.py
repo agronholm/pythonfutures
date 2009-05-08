@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 
-from futures._base import RUNNING, FINISHED, Executor, ALL_COMPLETED, ThreadEventSink, Future, FutureList
+from futures._base import (PENDING, RUNNING, CANCELLED,
+                           CANCELLED_AND_NOTIFIED, FINISHED,
+                           ALL_COMPLETED,
+                           LOGGER,
+                           set_future_exception, set_future_result,
+                           Executor, Future, FutureList,ThreadEventSink)
 import queue
 import threading
 
@@ -11,29 +16,26 @@ class _WorkItem(object):
         self.completion_tracker = completion_tracker
 
     def run(self):
-        if self.future.cancelled():
-            with self.future._condition:
-                self.future._condition.notify_all()
-            self.completion_tracker.add_cancelled()
-            return
-
         with self.future._condition:
-            self.future._state = RUNNING
+            if self.future._state == PENDING:
+                self.future._state = RUNNING
+            elif self.future._state == CANCELLED:
+                with self.completion_tracker._condition:
+                    self.future._state = CANCELLED_AND_NOTIFIED
+                    self.completion_tracker.add_cancelled()
+                return
+            else:
+                LOGGER.critical('Future %s in unexpected state: %d',
+                                id(self.future),
+                                self.future._state)
+                return
 
         try:
-            r = self.call()
+            result = self.call()
         except BaseException as e:
-            with self.future._condition:
-                self.future._exception = e
-                self.future._state = FINISHED
-                self.future._condition.notify_all()
-            self.completion_tracker.add_exception()
+            set_future_exception(self.future, self.completion_tracker, e)
         else:
-            with self.future._condition:
-                self.future._result = r
-                self.future._state = FINISHED
-                self.future._condition.notify_all()
-            self.completion_tracker.add_result()
+            set_future_result(self.future, self.completion_tracker, result)
 
 class ThreadPoolExecutor(Executor):
     def __init__(self, max_threads):
@@ -55,7 +57,7 @@ class ThreadPoolExecutor(Executor):
                 else:
                     work_item.run()
         except BaseException as e:
-            print('Out e:', e)
+            LOGGER.critical('Exception in worker', exc_info=True)
 
     def _adjust_thread_count(self):
         for _ in range(len(self._threads),
@@ -65,7 +67,7 @@ class ThreadPoolExecutor(Executor):
             t.start()
             self._threads.add(t)
 
-    def run(self, calls, timeout=None, run_until=ALL_COMPLETED):
+    def run(self, calls, timeout=None, return_when=ALL_COMPLETED):
         with self._lock:
             if self._shutdown:
                 raise RuntimeError()
@@ -80,7 +82,7 @@ class ThreadPoolExecutor(Executor):
     
             self._adjust_thread_count()
             fl = FutureList(futures, event_sink)
-            fl.wait(timeout=timeout, run_until=run_until)
+            fl.wait(timeout=timeout, return_when=return_when)
             return fl
 
     def shutdown(self):
