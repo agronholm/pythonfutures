@@ -28,7 +28,7 @@ def download_urls_sequential(urls, timeout=60):
 def download_urls_with_executor(urls, executor, timeout=60):
     try:
         url_to_content = {}
-        fs = executor.run(
+        fs = executor.run_to_futures(
                 (functools.partial(load_url, url, timeout) for url in urls),
                 timeout=timeout)
         for url, future in zip(urls, fs.successful_futures()):
@@ -37,8 +37,6 @@ def download_urls_with_executor(urls, executor, timeout=60):
     finally:
         executor.shutdown()
 
-import functools
-import time
 def main():
     for name, fn in [('sequential',
                       functools.partial(download_urls_sequential, URLS)),

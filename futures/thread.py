@@ -5,7 +5,7 @@ from futures._base import (PENDING, RUNNING, CANCELLED,
                            ALL_COMPLETED,
                            LOGGER,
                            set_future_exception, set_future_result,
-                           Executor, Future, FutureList,ThreadEventSink)
+                           Executor, Future, FutureList, ThreadEventSink)
 import queue
 import threading
 
@@ -43,14 +43,13 @@ class ThreadPoolExecutor(Executor):
         self._work_queue = queue.Queue()
         self._threads = set()
         self._shutdown = False
-        self._lock = threading.Lock()
+        self._shutdown_lock = threading.Lock()
 
     def _worker(self):
         try:
             while True:
                 try:
-                    work_item = self._work_queue.get(block=True,
-                                                    timeout=0.1)
+                    work_item = self._work_queue.get(block=True, timeout=0.1)
                 except queue.Empty:
                     if self._shutdown:
                         return
@@ -67,10 +66,10 @@ class ThreadPoolExecutor(Executor):
             t.start()
             self._threads.add(t)
 
-    def run(self, calls, timeout=None, return_when=ALL_COMPLETED):
-        with self._lock:
+    def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
+        with self._shutdown_lock:
             if self._shutdown:
-                raise RuntimeError()
+                raise RuntimeError('cannot run new futures after shutdown')
 
             futures = []
             event_sink = ThreadEventSink()
@@ -86,5 +85,5 @@ class ThreadPoolExecutor(Executor):
             return fl
 
     def shutdown(self):
-        with self._lock:
+        with self._shutdown_lock:
             self._shutdown = True
