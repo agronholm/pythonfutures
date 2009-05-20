@@ -31,7 +31,8 @@ def download_urls_with_executor(urls, executor, timeout=60):
         fs = executor.run_to_futures(
                 (functools.partial(load_url, url, timeout) for url in urls),
                 timeout=timeout)
-        for url, future in zip(urls, fs.successful_futures()):
+        for future in fs.successful_futures():
+            url = urls[future.index]
             url_to_content[url] = future.result()
         return url_to_content
     finally:

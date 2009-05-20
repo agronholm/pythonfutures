@@ -47,11 +47,8 @@ def _process_worker(call_queue, result_queue, shutdown):
 class ProcessPoolExecutor(Executor):
     def __init__(self, max_processes=None):
         if max_processes is None:
-            try:
-                max_processes = multiprocessing.cpu_count()
-            except NotImplementedError:
-                max_processes = 16
-            
+            max_processes = multiprocessing.cpu_count()
+
         self._max_processes = max_processes
         # Make the call queue slightly larger than the number of processes to
         # prevent the worker processes from starving but to make future.cancel()
@@ -140,8 +137,8 @@ class ProcessPoolExecutor(Executor):
             futures = []
             event_sink = ThreadEventSink()
             self._queue_count
-            for call in calls:
-                f = Future()
+            for index, call in enumerate(calls):
+                f = Future(index)
                 self._pending_work_items[self._queue_count] = _WorkItem(
                         call, f, event_sink)
                 self._work_ids.put(self._queue_count)

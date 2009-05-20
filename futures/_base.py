@@ -64,12 +64,13 @@ class TimeoutError(Error):
 class Future(object):
     """Represents the result of an asynchronous computation."""
 
-    def __init__(self):
-        """Initializes the Future. Should not be called by clients."""
+    def __init__(self, index):
+        """Initializes the future. Should not be called by clients."""
         self._condition = threading.Condition()
         self._state = PENDING
         self._result = None
         self._exception = None
+        self._index = index
 
     def __repr__(self):
         with self._condition:
@@ -83,6 +84,11 @@ class Future(object):
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._result.__class__.__name__)
             return '<Future state=%s>' % _STATE_TO_DESCRIPTION_MAP[self._state]
+
+    @property
+    def index(self):
+        """The index of the future in its FutureList."""
+        return self._index
 
     def cancel(self):
         """Cancel the future if possible.
@@ -103,6 +109,10 @@ class Future(object):
         """Return True if the future has cancelled."""
         with self._condition:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]
+
+    def running(self):
+        with self._condition:
+            return self._state == RUNNING
 
     def done(self):
         """Return True of the future was cancelled or finished executing."""
@@ -334,9 +344,6 @@ class FutureList(object):
     def has_exception_futures(self):
         return any(self.exception_futures())
 
-    def has_running_futures(self):
-        return any(self.running_futures())
-        
     def cancelled_futures(self):
         return (f for f in self
                 if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED])
@@ -356,17 +363,17 @@ class FutureList(object):
     def running_futures(self):
         return (f for f in self if f._state == RUNNING)
 
-    def __getitem__(self, i):
-        return self._futures[i]
-
     def __len__(self):
         return len(self._futures)
+
+    def __getitem__(self, i):
+        return self._futures[i]
 
     def __iter__(self):
         return iter(self._futures)
 
-    def __contains__(self, f):
-        return f in self._futures
+    def __contains__(self, future):
+        return future in self._futures
 
     def __repr__(self):
         states = {state: 0 for state in FUTURE_STATES}
@@ -399,10 +406,7 @@ class Executor(object):
                                   exception. If no future raises and exception
                                   then it is equivalent to ALL_COMPLETED.
                 ALL_COMPLETED - Return when all futures finish or are cancelled.
-                RETURN_IMMEDIATELY - Return without waiting (this is not likely
-                                     to be a useful option but it is there to
-                                     be symmetrical with the
-                                     executor.run_to_futures() method.
+                RETURN_IMMEDIATELY - Return without waiting.
 
         Returns:
             A FuturesList containing futures for the given calls.
@@ -445,24 +449,25 @@ class Executor(object):
             except TimeoutError:
                 pass
 
-    def map(self, fn, iter, timeout=None):
+    def map(self, func, *iterables, timeout=None):
         """Returns a iterator equivalent to map(fn, iter).
 
         Args:
-            fn: A callable taking a single argument.
+            func: A callable that will take take as many arguments as there
+                are passed iterables.
             timeout: The maximum number of seconds to wait. If None, then there
                 is no limit on the wait time.
 
         Returns:
-            An iterator equivalent to: map(fn, iter) but the calls may be
-            evaluated out-of-order.
+            An iterator equivalent to: map(func, *iterables) but the calls may
+            be evaluated out-of-order.
 
         Raises:
             TimeoutError: If the entire result iterator could not be generated
                 before the given timeout.
-            Exception: If fn(x) raises for any x in iter.
+            Exception: If fn(*args) raises for any values.
         """
-        calls = [functools.partial(fn, a) for a in iter]
+        calls = [functools.partial(func, *args) for args in zip(*iterables)]
         return self.run_to_results(calls, timeout)
 
     def shutdown(self):

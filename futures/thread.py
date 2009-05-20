@@ -73,8 +73,8 @@ class ThreadPoolExecutor(Executor):
 
             futures = []
             event_sink = ThreadEventSink()
-            for call in calls:
-                f = Future()
+            for index, call in enumerate(calls):
+                f = Future(index)
                 w = _WorkItem(call, f, event_sink)
                 self._work_queue.put(w)
                 futures.append(f)
