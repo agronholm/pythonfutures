@@ -6,7 +6,7 @@ from futures._base import (PENDING, RUNNING, CANCELLED,
                            set_future_exception, set_future_result,
                            Executor, Future, FutureList, ThreadEventSink)
 
-import queue
+import Queue
 import multiprocessing
 import threading
 
@@ -31,13 +31,13 @@ def _process_worker(call_queue, result_queue, shutdown):
     while True:
         try:
             call_item = call_queue.get(block=True, timeout=0.1)
-        except queue.Empty:
+        except Queue.Empty:
             if shutdown.is_set():
                 return
         else:
             try:
                 r = call_item.call()
-            except BaseException as e:
+            except BaseException, e:
                 result_queue.put(_ResultItem(call_item.work_id,
                                              exception=e))
             else:
@@ -55,7 +55,7 @@ class ProcessPoolExecutor(Executor):
         # responsive.
         self._call_queue = multiprocessing.Queue(self._max_processes + 1)
         self._result_queue = multiprocessing.Queue()
-        self._work_ids = queue.Queue()
+        self._work_ids = Queue.Queue()
         self._queue_management_thread = None
         self._processes = set()
 
@@ -70,19 +70,22 @@ class ProcessPoolExecutor(Executor):
         while True:
             try:
                 work_id = self._work_ids.get(block=False)
-            except queue.Empty:
+            except Queue.Empty:
                 return
             else:
                 work_item = self._pending_work_items[work_id]
     
                 if work_item.future.cancelled():
-                    with work_item.future._condition:
-                        work_item.future._condition.notify_all()
+                    work_item.future._condition.acquire()
+                    work_item.future._condition.notify_all()
+                    work_item.future._condition.release()
+
                     work_item.completion_tracker.add_cancelled()
                     continue
                 else:
-                    with work_item.future._condition:
-                        work_item.future._state = RUNNING
+                    work_item.future._condition.acquire()
+                    work_item.future._state = RUNNING
+                    work_item.future._condition.release()
 
                     self._call_queue.put(_CallItem(work_id, work_item.call),
                                          block=True)
@@ -95,7 +98,7 @@ class ProcessPoolExecutor(Executor):
             try:
                 result_item = self._result_queue.get(block=True,
                                                      timeout=0.1)
-            except queue.Empty:
+            except Queue.Empty:
                 if self._shutdown_thread and not self._pending_work_items:
                     self._shutdown_process_event.set()
                     return
@@ -116,7 +119,6 @@ class ProcessPoolExecutor(Executor):
         if self._queue_management_thread is None:
             self._queue_management_thread = threading.Thread(
                     target=self._result)
-            self._queue_management_thread.daemon = True
             self._queue_management_thread.start()
 
         for _ in range(len(self._processes), self._max_processes):
@@ -125,12 +127,12 @@ class ProcessPoolExecutor(Executor):
                     args=(self._call_queue,
                           self._result_queue,
                           self._shutdown_process_event))
-            p.daemon = True
             p.start()
             self._processes.add(p)
 
     def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
-        with self._shutdown_lock:
+        self._shutdown_lock.acquire()
+        try:
             if self._shutdown_thread:
                 raise RuntimeError('cannot run new futures after shutdown')
 
@@ -149,7 +151,12 @@ class ProcessPoolExecutor(Executor):
             fl = FutureList(futures, event_sink)
             fl.wait(timeout=timeout, return_when=return_when)
             return fl
+        finally:
+            self._shutdown_lock.release()
 
     def shutdown(self):
-        with self._shutdown_lock:
+        self._shutdown_lock.acquire()
+        try:
             self._shutdown_thread = True
+        finally:
+            self._shutdown_lock.release()

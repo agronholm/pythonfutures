@@ -3,7 +3,7 @@ import functools
 import futures.thread
 import time
 import timeit
-import urllib.request
+import urllib2
 
 URLS = ['http://www.google.com/',
         'http://www.apple.com/',
@@ -14,7 +14,7 @@ URLS = ['http://www.google.com/',
         'http://www.sweetapp.com/'] * 5
 
 def load_url(url, timeout):
-    return urllib.request.urlopen(url, timeout=timeout).read()
+    return urllib2.urlopen(url, timeout=timeout).read()
 
 def download_urls_sequential(urls, timeout=60):
     url_to_content = {}
@@ -49,9 +49,9 @@ def main():
                       functools.partial(download_urls_with_executor,
                                         URLS,
                                         futures.ThreadPoolExecutor(10)))]:
-        print('%s: ' % name.ljust(12), end='')
+        print '%s: ' % name.ljust(12),
         start = time.time()
         fn()
-        print('%.2f seconds' % (time.time() - start))
+        print '%.2f seconds' % (time.time() - start)
 
 main()

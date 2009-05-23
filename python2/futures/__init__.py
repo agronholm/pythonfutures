@@ -3,4 +3,10 @@ from futures._base import (FIRST_COMPLETED, FIRST_EXCEPTION,
                            CancelledError, TimeoutError,
                            Future, FutureList) 
 from futures.thread import ThreadPoolExecutor
-from futures.process import ProcessPoolExecutor
+
+try:
+    import multiprocessing
+except ImportError:
+    pass
+else:
+    from futures.process import ProcessPoolExecutor

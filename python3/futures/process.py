@@ -116,7 +116,6 @@ class ProcessPoolExecutor(Executor):
         if self._queue_management_thread is None:
             self._queue_management_thread = threading.Thread(
                     target=self._result)
-            self._queue_management_thread.daemon = True
             self._queue_management_thread.start()
 
         for _ in range(len(self._processes), self._max_processes):
@@ -125,7 +124,6 @@ class ProcessPoolExecutor(Executor):
                     args=(self._call_queue,
                           self._result_queue,
                           self._shutdown_process_event))
-            p.daemon = True
             p.start()
             self._processes.add(p)
 

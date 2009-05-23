@@ -37,20 +37,34 @@ LOGGER.addHandler(_handler)
 del _handler
 
 def set_future_exception(future, event_sink, exception):
-    with future._condition:
+    future._condition.acquire()
+    try:
         future._exception = exception
-        with event_sink._condition:
+        event_sink._condition.acquire()
+        try:
             future._state = FINISHED
             event_sink.add_exception()
-        future._condition.notify_all()
+        finally:
+            event_sink._condition.release()
+
+        future._condition.notifyAll()
+    finally:
+        future._condition.release()
 
 def set_future_result(future, event_sink, result):
-    with future._condition:
+    future._condition.acquire()
+    try:
         future._result = result
-        with event_sink._condition:
+        event_sink._condition.acquire()
+        try:
             future._state = FINISHED
             event_sink.add_result()
-        future._condition.notify_all()
+        finally:
+            event_sink._condition.release()
+
+        future._condition.notifyAll()
+    finally:
+        future._condition.release()
 
 class Error(Exception):
     pass
@@ -73,7 +87,8 @@ class Future(object):
         self._index = index
 
     def __repr__(self):
-        with self._condition:
+        self._condition.acquire()
+        try:
             if self._state == FINISHED:
                 if self._exception:
                     return '<Future state=%s raised %s>' % (
@@ -84,6 +99,8 @@ class Future(object):
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._result.__class__.__name__)
             return '<Future state=%s>' % _STATE_TO_DESCRIPTION_MAP[self._state]
+        finally:
+            self._condition.release()
 
     @property
     def index(self):
@@ -96,7 +113,8 @@ class Future(object):
         Returns True if the future was cancelled, False otherwise. A future
         cannot be cancelled if it is running or has already completed.
         """
-        with self._condition:
+        self._condition.acquire()
+        try:
             if self._state in [RUNNING, FINISHED]:
                 return False
 
@@ -104,20 +122,31 @@ class Future(object):
                 self._state = CANCELLED
                 self._condition.notify_all()
             return True
+        finally:
+            self._condition.release()
 
     def cancelled(self):
         """Return True if the future has cancelled."""
-        with self._condition:
+        self._condition.acquire()
+        try:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]
+        finally:
+            self._condition.release()
 
     def running(self):
-        with self._condition:
+        self._condition.acquire()
+        try:
             return self._state == RUNNING
+        finally:
+            self._condition.release()
 
     def done(self):
         """Return True of the future was cancelled or finished executing."""
-        with self._condition:
+        self._condition.acquire()
+        try:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
+        finally:
+            self._condition.release()
 
     def __get_result(self):
         if self._exception:
@@ -141,7 +170,8 @@ class Future(object):
                 timeout.
             Exception: If the call raised then that exception will be raised.
         """
-        with self._condition:
+        self._condition.acquire()
+        try:
             if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
                 raise CancelledError()
             elif self._state == FINISHED:
@@ -155,6 +185,8 @@ class Future(object):
                 return self.__get_result()
             else:
                 raise TimeoutError()
+        finally:
+            self._condition.release()
 
     def exception(self, timeout=None):
         """Return the exception raised by the call that the future represents.
@@ -174,7 +206,8 @@ class Future(object):
                 timeout.
         """
 
-        with self._condition:
+        self._condition.acquire()
+        try:
             if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
                 raise CancelledError()
             elif self._state == FINISHED:
@@ -188,6 +221,8 @@ class Future(object):
                 return self._exception
             else:
                 raise TimeoutError()
+        finally:
+            self._condition.release()
 
 class _FirstCompletedWaitTracker(object):
     def __init__(self):
@@ -278,7 +313,8 @@ class FutureList(object):
         if return_when == RETURN_IMMEDIATELY:
             return
 
-        with self._event_sink._condition:
+        self._event_sink._condition.acquire()
+        try:
             # Make a quick exit if every future is already done. This check is
             # necessary because, if every future is in the
             # CANCELLED_AND_NOTIFIED or FINISHED state then the WaitTracker will
@@ -306,6 +342,8 @@ class FutureList(object):
                             pending_count, stop_on_exception=False)
 
             self._event_sink.add(completed_tracker)
+        finally:
+            self._event_sink._condition.release()
 
         try:
             completed_tracker.event.wait(timeout)
@@ -376,7 +414,7 @@ class FutureList(object):
         return future in self._futures
 
     def __repr__(self):
-        states = {state: 0 for state in FUTURE_STATES}
+        states = dict([(state, 0) for state in FUTURE_STATES])
         for f in self:
             states[f._state] += 1
 
@@ -449,7 +487,7 @@ class Executor(object):
             except TimeoutError:
                 pass
 
-    def map(self, func, *iterables, timeout=None):
+    def map(self, func, *iterables, **kwargs):
         """Returns a iterator equivalent to map(fn, iter).
 
         Args:
@@ -467,8 +505,9 @@ class Executor(object):
                 before the given timeout.
             Exception: If fn(*args) raises for any values.
         """
+        timeout = kwargs.get('timeout') or None
         calls = [functools.partial(func, *args) for args in zip(*iterables)]
-        return self.run_to_results(calls, timeout)
+        return self.run_to_results(calls, timeout=timeout)
 
     def shutdown(self):
         """Clean-up. No other methods can be called afterwards."""

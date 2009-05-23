@@ -1,10 +1,8 @@
-import test.support
-from test.support import verbose
-
 import unittest
 import threading
 import time
 import multiprocessing
+from test import test_support
 
 import futures
 import futures._base
@@ -168,16 +166,15 @@ class WaitsTest(unittest.TestCase):
         def wait_for_FIRST_COMPLETED():
             fs.wait(return_when=futures.FIRST_COMPLETED)
             self.assertTrue(f1.done())
-            self.assertFalse(f2.done()) # XXX
+            self.assertFalse(f2.done())
             self.assertFalse(f3.done())
             self.assertFalse(f4.done())
             first_completed.release()
-
         def wait_for_FIRST_EXCEPTION():
             fs.wait(return_when=futures.FIRST_EXCEPTION)
             self.assertTrue(f1.done())
             self.assertTrue(f2.done())
-            self.assertFalse(f3.done()) # XXX
+            self.assertFalse(f3.done())
             self.assertFalse(f4.done())
             first_exception.release()
 
@@ -205,7 +202,7 @@ class WaitsTest(unittest.TestCase):
                 threads.append(t)
     
             time.sleep(1)   # give threads enough time to execute wait
-    
+
             call1.set_can()
             first_completed.acquire()
             call2.set_can()        
@@ -412,6 +409,7 @@ class ExecutorTest(unittest.TestCase):
             self.assertFalse(f5.done())
             self.assertEqual(f5.index, 4)
         finally:
+            call3.set_can()  # Let the call finish executing.
             call1.close()
             call2.close()
             call3.close()
@@ -438,9 +436,9 @@ class ExecutorTest(unittest.TestCase):
         try:
             i = self.executor.run_to_results([call1, call2, call3])
     
-            self.assertEqual(i.__next__(), 1)
-            self.assertEqual(i.__next__(), 2)
-            self.assertRaises(ZeroDivisionError, i.__next__)
+            self.assertEqual(i.next(), 1)
+            self.assertEqual(i.next(), 2)
+            self.assertRaises(ZeroDivisionError, i.next)
         finally:
             call1.close()
             call2.close()
@@ -453,9 +451,9 @@ class ExecutorTest(unittest.TestCase):
 
         try:
             i = self.executor.run_to_results([call1, call2, call3], timeout=1)
-            self.assertEqual(i.__next__(), 1)
-            self.assertEqual(i.__next__(), 2)
-            self.assertRaises(futures.TimeoutError, i.__next__)
+            self.assertEqual(i.next(), 1)
+            self.assertEqual(i.next(), 2)
+            self.assertRaises(futures.TimeoutError, i.next)
             call3.set_can()
         finally:
             call1.close()
@@ -469,9 +467,9 @@ class ExecutorTest(unittest.TestCase):
 
     def test_map_exception(self):
         i = self.executor.map(divmod, [1, 1, 1, 1], [2, 3, 0, 5])
-        self.assertEqual(i.__next__(), (0, 1))
-        self.assertEqual(i.__next__(), (0, 1))
-        self.assertRaises(ZeroDivisionError, i.__next__)
+        self.assertEqual(i.next(), (0, 1))
+        self.assertEqual(i.next(), (0, 1))
+        self.assertRaises(ZeroDivisionError, i.next)
 
 class ThreadPoolExecutorTest(ExecutorTest):
     def setUp(self):
@@ -793,7 +791,7 @@ class FutureListTests(unittest.TestCase):
                          '[#pending=4 #cancelled=3 #running=2 #finished=6]>')
 
 def test_main():
-    test.support.run_unittest(ProcessPoolCancelTests,
+    test_support.run_unittest(ProcessPoolCancelTests,
                               ThreadPoolCancelTests,
                               ProcessPoolExecutorTest,
                               ThreadPoolExecutorTest,

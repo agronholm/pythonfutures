@@ -1,5 +1,4 @@
 import test.support
-from test.support import verbose
 
 import unittest
 import threading
@@ -412,6 +411,7 @@ class ExecutorTest(unittest.TestCase):
             self.assertFalse(f5.done())
             self.assertEqual(f5.index, 4)
         finally:
+            call3.set_can()  # Let the call finish executing.
             call1.close()
             call2.close()
             call3.close()

@@ -62,7 +62,6 @@ class ThreadPoolExecutor(Executor):
         for _ in range(len(self._threads),
                        min(self._max_threads, self._work_queue.qsize())):
             t = threading.Thread(target=self._worker)
-            t.daemon = True
             t.start()
             self._threads.add(t)
 
