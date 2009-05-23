@@ -277,8 +277,10 @@ class CancelTests(unittest.TestCase):
             call3.close()
             call4.close()
 
-    def test_wait_for_individual_cancel(self):
+    def test_wait_for_individual_cancel_while_waiting(self):
         def end_call():
+            # Wait until the main thread is waiting on the results of the
+            # future.
             time.sleep(1)
             f2.cancel()
             call1.set_can()
@@ -318,7 +320,6 @@ class CancelTests(unittest.TestCase):
             self.assertTrue(f2.cancel())
             self.assertTrue(f3.cancel())
             call1.set_can()
-            time.sleep(0.1)
     
             fs.wait(return_when=futures.ALL_COMPLETED)
         finally:
@@ -384,7 +385,13 @@ class ExecutorTest(unittest.TestCase):
                     return_when=futures.RETURN_IMMEDIATELY)
     
             call3.wait_on_called()
-    
+
+            # ProcessPoolExecutor uses a thread to propogate results into the
+            # future. Calling result() ensures that the thread has done its work
+            # before doing the next set of checks.
+            f1.result()  
+            f2.result()
+
             self.assertTrue(f1.done())
             self.assertFalse(f1.running())
             self.assertEqual(f1.index, 0)
@@ -398,7 +405,7 @@ class ExecutorTest(unittest.TestCase):
             self.assertEqual(f3.index, 2)
 
             # ProcessPoolExecutor may mark some futures as running before they
-            # actually are.
+            # actually are so don't check these ones.
             self.assertFalse(f4.done())
             self.assertEqual(f4.index, 3)
     
@@ -561,7 +568,8 @@ class FutureTests(unittest.TestCase):
 
     def test_result_with_success(self):
         def notification():
-            time.sleep(0.1)
+            # Wait until the main thread is waiting for the result.
+            time.sleep(1)
             with f1._condition:
                 f1._state = FINISHED
                 f1._result = 42
@@ -571,11 +579,12 @@ class FutureTests(unittest.TestCase):
         t = threading.Thread(target=notification)
         t.start()
 
-        self.assertEquals(f1.result(timeout=1), 42)
+        self.assertEquals(f1.result(timeout=5), 42)
 
     def test_result_with_cancel(self):
         def notification():
-            time.sleep(0.1)
+            # Wait until the main thread is waiting for the result.
+            time.sleep(1)
             with f1._condition:
                 f1._state = CANCELLED
                 f1._condition.notify_all()
@@ -584,7 +593,7 @@ class FutureTests(unittest.TestCase):
         t = threading.Thread(target=notification)
         t.start()
 
-        self.assertRaises(futures.CancelledError, f1.result, timeout=1)
+        self.assertRaises(futures.CancelledError, f1.result, timeout=5)
 
     def test_exception_with_timeout(self):
         self.assertRaises(futures.TimeoutError,
@@ -601,7 +610,8 @@ class FutureTests(unittest.TestCase):
 
     def test_exception_with_success(self):
         def notification():
-            time.sleep(0.1)
+            # Wait until the main thread is waiting for the exception.
+            time.sleep(1)
             with f1._condition:
                 f1._state = FINISHED
                 f1._exception = IOError()
@@ -611,7 +621,7 @@ class FutureTests(unittest.TestCase):
         t = threading.Thread(target=notification)
         t.start()
 
-        self.assertTrue(isinstance(f1.exception(timeout=1), IOError))
+        self.assertTrue(isinstance(f1.exception(timeout=5), IOError))
 
 class FutureListTests(unittest.TestCase):
     # FutureList.wait() is further tested by WaitsTest.
