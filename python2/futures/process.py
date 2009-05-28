@@ -37,7 +37,7 @@ def _process_worker(call_queue, result_queue, shutdown):
         else:
             try:
                 r = call_item.call()
-            except BaseException, e:
+            except Exception, e:
                 result_queue.put(_ResultItem(call_item.work_id,
                                              exception=e))
             else:

@@ -3,6 +3,25 @@ import logging
 import threading
 import time
 
+# The "any" and "all" builtins weren't introduced until Python 2.5.
+try:
+    any
+except NameError:
+    def any(iterable):
+        for element in iterable:
+            if element:
+                return True
+        return False
+
+try:
+    all
+except NameError:
+    def all(iterable):
+        for element in iterable:
+            if not element:
+                return False
+        return True
+
 FIRST_COMPLETED = 0
 FIRST_EXCEPTION = 1
 ALL_COMPLETED = 2
@@ -481,11 +500,14 @@ class Executor(object):
                     yield future.result()
                 else:
                     yield future.result(end_time - time.time())
-        finally:
+        except:
+            # Python 2.4 and earlier didn't allow yield statements in
+            # try/finally blocks
             try:
                 fs.cancel(timeout=0)
             except TimeoutError:
                 pass
+            raise
 
     def map(self, func, *iterables, **kwargs):
         """Returns a iterator equivalent to map(fn, iter).

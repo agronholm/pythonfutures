@@ -38,7 +38,7 @@ class _WorkItem(object):
 
         try:
             result = self.call()
-        except BaseException, e:
+        except Exception, e:
             set_future_exception(self.future, self.completion_tracker, e)
         else:
             set_future_result(self.future, self.completion_tracker, result)
