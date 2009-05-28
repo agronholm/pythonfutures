@@ -1,7 +1,19 @@
-import functools
 import logging
 import threading
 import time
+
+try:
+    from functools import partial
+except ImportError:
+    def partial(func, *args, **keywords):
+            def newfunc(*fargs, **fkeywords):
+                newkeywords = keywords.copy()
+                newkeywords.update(fkeywords)
+                return func(*(args + fargs), **newkeywords)
+            newfunc.func = func
+            newfunc.args = args
+            newfunc.keywords = keywords
+            return newfunc
 
 # The "any" and "all" builtins weren't introduced until Python 2.5.
 try:
@@ -528,7 +540,7 @@ class Executor(object):
             Exception: If fn(*args) raises for any values.
         """
         timeout = kwargs.get('timeout') or None
-        calls = [functools.partial(func, *args) for args in zip(*iterables)]
+        calls = [partial(func, *args) for args in zip(*iterables)]
         return self.run_to_results(calls, timeout=timeout)
 
     def shutdown(self):
