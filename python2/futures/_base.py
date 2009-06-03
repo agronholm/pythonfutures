@@ -512,14 +512,14 @@ class Executor(object):
                     yield future.result()
                 else:
                     yield future.result(end_time - time.time())
-        except:
+        except Exception, e:
             # Python 2.4 and earlier didn't allow yield statements in
             # try/finally blocks
             try:
                 fs.cancel(timeout=0)
             except TimeoutError:
                 pass
-            raise
+            raise e
 
     def map(self, func, *iterables, **kwargs):
         """Returns a iterator equivalent to map(fn, iter).
