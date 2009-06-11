@@ -14,5 +14,5 @@ setup(name='futures',
       classifiers=['License :: OSI Approved :: BSD License',
                    'Development Status :: 3 - Alpha',
                    'Intended Audience :: Developers',
-                   'Programming Language :: Python']
+                   'Programming Language :: Python :: 3']
       )
