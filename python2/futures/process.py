@@ -1,4 +1,8 @@
-#!/usr/bin/env python
+# Copyright 2009 Brian Quinlan. All Rights Reserved. See LICENSE file.
+
+"""Implements ProcessPoolExecutor."""
+
+__author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 from futures._base import (PENDING, RUNNING, CANCELLED,
                            CANCELLED_AND_NOTIFIED, FINISHED,

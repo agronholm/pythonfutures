@@ -1,3 +1,7 @@
+# Copyright 2009 Brian Quinlan. All Rights Reserved. See LICENSE file.
+
+__author__ = 'Brian Quinlan (brian@sweetapp.com)'
+
 import functools
 import logging
 import threading
