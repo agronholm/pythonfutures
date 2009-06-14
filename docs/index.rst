@@ -1,4 +1,3 @@
-
 :mod:`futures` --- Asynchronous computation
 ===========================================
 
@@ -6,7 +5,13 @@
    :synopsis: Execute computations asynchronously using threads or
    (experimentally) processes. 
 
-XXX Overview. XXX Make this documentation suck less.
+The :mod:`futures` module provides a high-level interface for asynchronously
+executing functions and methods.
+
+The asynchronous execution can be be performed by threads, using
+:class:`ThreadPoolExecutor`, or seperate processes, using
+:class:`ProcessPoolExecutor`. Both implement the same interface, which is
+defined by the abstract :class:`Executor` class.
 
 Executor Objects
 ----------------
@@ -112,17 +117,16 @@ ProcessPoolExecutor Objects
 
 The :class:`ProcessPoolExecutor` class is an **experimental** :class:`Executor`
 subclass that uses a pool of processes to execute calls asynchronously. There
-are situations where it can deadlock.
+are situations where it can deadlock. :class:`ProcessPoolExecutor` uses the
+:mod:`multiprocessing` module, which allows it to side-step the
+:term:`Global Interpreter Lock` but also means that only picklable objects can
+be executed and returned.
 
 .. class:: ProcessPoolExecutor(max_processes=None)
 
    Executes calls asynchronously using a pool of at most *max_processes*
    processes. If *max_processes* is ``None`` or not given then as many worker
    processes will be created as the machine has processors.
-
-XXX Same as ThreadPoolExecutor except:
-   * serialization limits
-   * no GIL issues
 
 ProcessPoolExecutor Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -158,8 +162,35 @@ instances and should only be instantiated by :meth:`Executor.run_to_futures`.
 
 .. method:: FutureList.wait(timeout=None, return_when=ALL_COMPLETED)
 
-   XXX Copy this from ThreadPoolExecutor but with a note about RETURN_IMMEDIATELY
-   being useless
+   Wait until the given conditions are met. This method should always be
+   called using keyword arguments, which are:
+
+   *timeout* can be used to control the maximum number of seconds to wait before
+   returning. If *timeout* is not specified or ``None`` then there is no limit
+   to the wait time.
+
+   *return_when* indicates when the method should return. It must be one of the
+   following constants:
+
+      +-----------------------------+----------------------------------------+
+      | Constant                    | Description                            |
+      +=============================+========================================+
+      | :const:`FIRST_COMPLETED`    | The method will return when any call   |
+      |                             | finishes.                              |
+      +-----------------------------+----------------------------------------+
+      | :const:`FIRST_EXCEPTION`    | The method will return when any call   |
+      |                             | raises an exception or when all calls  |
+      |                             | finish.                                |
+      +-----------------------------+----------------------------------------+
+      | :const:`ALL_COMPLETED`      | The method will return when all calls  |
+      |                             | finish.                                |
+      +-----------------------------+----------------------------------------+
+      | :const:`RETURN_IMMEDIATELY` | The method will return immediately.    |
+      |                             | This option is only available for      |
+      |                             | consistency with                       |
+      |                             | :meth:`Executor.run_to_results` and is |
+      |                             | not likely to be useful.               |
+      +-----------------------------+----------------------------------------+
 
 .. method:: FutureList.cancel(timeout=None)
 
