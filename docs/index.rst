@@ -2,8 +2,7 @@
 ===========================================
 
 .. module:: futures
-   :synopsis: Execute computations asynchronously using threads or
-   (experimentally) processes. 
+   :synopsis: Execute computations asynchronously using threads or (experimentally) processes. 
 
 The :mod:`futures` module provides a high-level interface for asynchronously
 executing functions and methods.
