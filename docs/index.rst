@@ -290,6 +290,9 @@ or method call. :class:`Future` instances are created by the
    in *timeout* seconds then a :exc:`TimeoutError` will be raised. If *timeout*
    is not specified or ``None`` then there is no limit to the wait time.
 
+   If the future is cancelled before completing then :exc:`CancelledError` will
+   be raised.
+
    If the call raised then this method will raise the same exception.
 
 .. method:: Future.exception(timeout=None)
@@ -300,7 +303,10 @@ or method call. :class:`Future` instances are created by the
    If *timeout* is not specified or ``None`` then there is no limit to the wait
    time.
 
-   If the call completed without raising then ``None`` is returned.
+   If the future is cancelled before completing then :exc:`CancelledError` will
+   be raised.
+
+   If the call completed without raising then ``None`` is returned.   
 
 .. attribute:: Future.index
 
