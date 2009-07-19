@@ -334,37 +334,47 @@ class FutureList(object):
             raise TimeoutError()
 
     def has_running_futures(self):
+        """Returns True if any futures in the list are still running."""
         return any(self.running_futures())
 
     def has_cancelled_futures(self):
+        """Returns True if any futures in the list were cancelled."""
         return any(self.cancelled_futures())
 
     def has_done_futures(self):
+        """Returns True if any futures in the list are finished or cancelled."""
         return any(self.done_futures())
 
     def has_successful_futures(self):
+        """Returns True if any futures in the list finished without raising."""
         return any(self.successful_futures())
 
     def has_exception_futures(self):
+        """Returns True if any futures in the list finished by raising."""
         return any(self.exception_futures())
 
     def cancelled_futures(self):
+        """Returns all cancelled futures in the list."""
         return (f for f in self
                 if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED])
   
     def done_futures(self):
+        """Returns all futures in the list that are finished or cancelled."""
         return (f for f in self
                 if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED])
 
     def successful_futures(self):
+        """Returns all futures in the list that finished without raising."""
         return (f for f in self
                 if f._state == FINISHED and f._exception is None)
   
     def exception_futures(self):
+        """Returns all futures in the list that finished by raising."""
         return (f for f in self
                 if f._state == FINISHED and f._exception is not None)
   
     def running_futures(self):
+        """Returns all futures in the list that are still running."""
         return (f for f in self if f._state == RUNNING)
 
     def __len__(self):
