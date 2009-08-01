@@ -403,7 +403,7 @@ class FutureList(object):
                 states[FINISHED]))
 
 class Executor(object):
-    """THis is an abstract base class for conrete asynchronous executors."""
+    """This is an abstract base class for conrete asynchronous executors."""
     def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
         """Return a list of futures representing the given calls.
 
