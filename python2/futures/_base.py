@@ -472,6 +472,7 @@ class FutureList(object):
                 states[FINISHED]))
 
 class Executor(object):
+    """This is an abstract base class for concrete asynchronous executors."""
     def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
         """Return a list of futures representing the given calls.
 
