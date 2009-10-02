@@ -119,6 +119,9 @@ def _result(executor_reference,
 
 class ProcessPoolExecutor(Executor):
     def __init__(self, max_processes=None):
+        import warnings
+        warnings.warn('ProcessPoolExecutor has known deadlocking behavior')
+
         if max_processes is None:
             max_processes = multiprocessing.cpu_count()
 

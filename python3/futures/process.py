@@ -13,6 +13,7 @@ import atexit
 import queue
 import multiprocessing
 import threading
+import warnings
 import weakref
 
 _thread_references = set()
@@ -119,6 +120,8 @@ def _result(executor_reference,
 
 class ProcessPoolExecutor(Executor):
     def __init__(self, max_processes=None):
+        warnings.warn('ProcessPoolExecutor has known deadlocking behavior')
+
         if max_processes is None:
             max_processes = multiprocessing.cpu_count()
 
