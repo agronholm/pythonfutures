@@ -26,8 +26,8 @@ import weakref
 #     writing to a file.
 #
 # To work around this problem, an exit handler is installed which tells the
-# workers to exit when their work queues are empty and then waits until the
-# threads finish.
+# workers to exit when their work queues are empty and then waits until they
+# finish.
 
 _thread_references = set()  # Weakrefs to every active worker thread.
 _shutdown = False           # Indicates that the interpreter is shutting down.
@@ -43,7 +43,8 @@ def _python_exit():
 def _remove_dead_thread_references():
     """Remove inactive threads from _thread_references.
 
-    Should be called periodically to prevent memory leaks in scenarios such as:
+    Should be called periodically to prevent thread objects from accumulating in
+    scenarios such as:
     >>> while True:
     >>> ...    t = ThreadPoolExecutor(max_threads=5)
     >>> ...    t.map(int, ['1', '2', '3', '4', '5'])
@@ -109,6 +110,12 @@ def _worker(executor_reference, work_queue):
 
 class ThreadPoolExecutor(Executor):
     def __init__(self, max_threads):
+        """Initializes a new ThreadPoolExecutor instance.
+
+        Args:
+            max_threads: The maximum number of threads that can be used to
+                execute the given calls.
+        """
         _remove_dead_thread_references()
 
         self._max_threads = max_threads
@@ -147,6 +154,7 @@ class ThreadPoolExecutor(Executor):
             return fl
         finally:
             self._shutdown_lock.release()
+    run_to_futures.__doc__ = Executor.run_to_futures.__doc__
 
     def shutdown(self):
         self._shutdown_lock.acquire()
@@ -154,3 +162,4 @@ class ThreadPoolExecutor(Executor):
             self._shutdown = True
         finally:
             self._shutdown_lock.release()
+    shutdown.__doc__ = Executor.shutdown.__doc__

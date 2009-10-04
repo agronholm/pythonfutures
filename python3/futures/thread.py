@@ -103,6 +103,14 @@ def _worker(executor_reference, work_queue):
 
 class ThreadPoolExecutor(Executor):
     def __init__(self, max_threads):
+        """Initializes a new ThreadPoolExecutor instance.
+
+        Args:
+            max_threads: The maximum number of threads that can be used to
+                execute the given calls.
+        """
+        _remove_dead_thread_references()
+
         self._max_threads = max_threads
         self._work_queue = queue.Queue()
         self._threads = set()
@@ -136,7 +144,9 @@ class ThreadPoolExecutor(Executor):
             fl = FutureList(futures, event_sink)
             fl.wait(timeout=timeout, return_when=return_when)
             return fl
+    run_to_futures.__doc__ = Executor.run_to_futures.__doc__
 
     def shutdown(self):
         with self._shutdown_lock:
             self._shutdown = True
+    shutdown.__doc__ = Executor.shutdown.__doc__
