@@ -545,7 +545,7 @@ class Executor(object):
                 RETURN_IMMEDIATELY - Return without waiting.
 
         Returns:
-            A FuturesList containing futures for the given calls.
+            A FutureList containing Futures for the given calls.
         """
         raise NotImplementedError()
 
@@ -580,7 +580,7 @@ class Executor(object):
                 else:
                     yield future.result(end_time - time.time())
         except Exception, e:
-            # Python 2.4 and earlier didn't allow yield statements in
+            # Python 2.4 and earlier don't allow yield statements in
             # try/finally blocks
             try:
                 fs.cancel(timeout=0)

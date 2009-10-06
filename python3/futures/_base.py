@@ -484,7 +484,7 @@ class Executor(object):
                 RETURN_IMMEDIATELY - Return without waiting.
 
         Returns:
-            A FuturesList containing futures for the given calls.
+            A FutureList containing Futures for the given calls.
         """
         raise NotImplementedError()
 

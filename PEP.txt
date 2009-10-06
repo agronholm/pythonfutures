@@ -1,12 +1,78 @@
 """
 Abstract
 
+    This PEP proposes a design for a module that facilitates the evaluation of
+    callables using threads.
+
+Motivation
+
     Python currently has powerful primitives to construct multi-threaded
     applications but parallelizing simple functions requires a lot of
-    setup work i.e. explicitly launching threads, constructing a
-    work/results queue, and waiting for completion or some other
-    termination condition (e.g. exception, success). It is also hard to
-    manage the global . This PEP proposes the addition 
+    work i.e. explicitly launching threads, constructing a work/results queue,
+    and waiting for completion or some other termination condition (e.g.
+    failure, timeout). It is also difficult to design an application with a
+    global thread limit when each component must invent its own threading
+    stategy.
+
+Specification:
+
+
+Executor:
+    .run_to_futures(calls, timeout=None, return_when=ALL_COMPLETED)
+
+   Schedule the given calls for execution and return a FutureList
+   containing a Future`for each call.
+
+   *calls* must be a sequence of callables that take no arguments.
+
+   *timeout* can be used to control the maximum number of seconds to wait before
+   returning. If *timeout* is not specified or None then there is no limit
+   to the wait time.
+
+   *return_when* indicates when the method should return. It must be one of the
+   following constants:
+
+    FIRST_COMPLETED - The method will return when any call finishes.                              |
+    FIRST_EXCEPTION - The method will return when any call raises an exception
+    or when all calls finish.                                |
+    ALL_COMPLETED - The method will return when all calls finish.                                |
+      +-----------------------------+----------------------------------------+
+      | :const:`RETURN_IMMEDIATELY` | The method will return immediately.    |
+      +-----------------------------+----------------------------------------+
+
+
+    The core idea behind the module is the concept of a Future. A Future is a
+    XXX. The Future class makes little committement to the evaluation mode
+    being used e.g. the same class could be used for lazy or eager evaluation,
+    for evaluation using threads or using remote procedure calls.
+
+    Future implements a single operation:
+        - cancel(): Cancels the Future if possible. Returns True if the
+                    operation was cancelled, False otherwise.
+
+    and several getters:
+        - cancelled: True if the Future was cancelled, False otherwise
+        - running: True if the call that the Future represents is currently
+                   being evaluated, False otherwise.
+        - done: True if the 
+        - result
+        - exception
+
+    
+Rationale:
+
+    The proposed design of this module was heavily influenced by the the Java
+    XXX package [1]. The conceptual basis of the module is the Future class [2], which
+    is XXX.
+    The Future class makes little committement to the evaluation mode
+    being used e.g. if can be be used for lazy or eager evaluation, for evaluation
+    using threads or using remote procedure calls. Futures have already been
+    seen in Python as part of recipe [XXX].
+
+    Futures are created by an Excecutor [Java ref]. An Executor takes callables
+    as arguments and returns a list of Future instances. 
+    
+    This PEP proposes the addition 
 
 
     Python currently distinguishes between two kinds of integers
