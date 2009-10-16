@@ -328,30 +328,30 @@ inclusion.
 References
 ==========
 
-..  [1]
+.. [1]
 
-    `java.util.concurrent` package documentation
-    `http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/package-summary.html`
+   `java.util.concurrent` package documentation
+   `http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/package-summary.html`
 
-..  [2]
+.. [2]
 
-    Pythono Cookbook recipe 84317, "Easy threading with Futures"
-    `http://code.activestate.com/recipes/84317/`
+   Pythono Cookbook recipe 84317, "Easy threading with Futures"
+   `http://code.activestate.com/recipes/84317/`
 
-..  [3]
+.. [3]
 
-    `Python-3000` thread, "mechanism for handling asynchronous concurrency"
-    `http://mail.python.org/pipermail/python-3000/2006-April/000960.html`
+   `Python-3000` thread, "mechanism for handling asynchronous concurrency"
+   `http://mail.python.org/pipermail/python-3000/2006-April/000960.html`
 
 
-..  [4]
+.. [4]
 
-    `Python 3000` thread, "Futures in Python 3000 (was Re: mechanism for handling asynchronous concurrency)"
-    `http://mail.python.org/pipermail/python-3000/2006-April/000970.html`
+   `Python 3000` thread, "Futures in Python 3000 (was Re: mechanism for handling asynchronous concurrency)"
+   `http://mail.python.org/pipermail/python-3000/2006-April/000970.html`
 
-..  [5]
+.. [5]
 
-    Reference `futures` implementation `http://code.google.com/p/pythonfutures`
+   Reference `futures` implementation `http://code.google.com/p/pythonfutures`
 
 =========
 Copyright
