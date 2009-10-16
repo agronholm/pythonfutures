@@ -113,7 +113,8 @@ possibly out-of-order. The returned iterator raises a `TimeoutError` if
 `__next__()` is called and the result isn't available after *timeout* seconds
 from the original call to `run_to_results()`. If *timeout* is not specified or
 ``None`` then there is no limit to the wait time. If a call raises an exception
-then that exception will be raised when its value is retrieved from the iterator.
+then that exception will be raised when its value is retrieved from the
+iterator.
 
 `Executor.shutdown()`
 
@@ -201,7 +202,8 @@ cancelled.
 
 `done_futures()`
 
-Return an iterator over all `Future` instances that completed are were cancelled.
+Return an iterator over all `Future` instances that completed are were
+cancelled.
 
 `successful_futures()`
 
