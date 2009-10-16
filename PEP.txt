@@ -1,91 +1,356 @@
-"""
+PEP:               XXX
+Title:             Standard futures library
+Version:           $Revision$
+Last-Modified:     $Date$
+Author:            Brian Quinlan <brian@sweetapp.com>
+Status:            Draft
+Type:              Standards Track
+Content-Type:      text/x-rst
+Created:           16-Oct-2009
+Python-Version:    3.2
+Post-History:
+
+========
 Abstract
+========
 
-    This PEP proposes a design for a module that facilitates the evaluation of
-    callables using threads.
+This PEP proposes a design for a package that facilitates the evaluation of
+callables using threads.
 
+==========
 Motivation
+==========
 
-    Python currently has powerful primitives to construct multi-threaded
-    applications but parallelizing simple functions requires a lot of
-    work i.e. explicitly launching threads, constructing a work/results queue,
-    and waiting for completion or some other termination condition (e.g.
-    failure, timeout). It is also difficult to design an application with a
-    global thread limit when each component must invent its own threading
-    stategy.
+Python currently has powerful primitives to construct multi-threaded
+applications but parallelizing simple operations requires a lot of work i.e.
+explicitly launching threads, constructing a work/results queue, and waiting
+for completion or some other termination condition (e.g. failure, timeout). It
+is also difficult to design an application with a global thread limit when each
+component invents its own threading stategy.
 
-Specification:
+=============
+Specification
+=============
 
+Example
+-------
 
-Executor:
-    .run_to_futures(calls, timeout=None, return_when=ALL_COMPLETED)
+::
 
-   Schedule the given calls for execution and return a FutureList
-   containing a Future`for each call.
-
-   *calls* must be a sequence of callables that take no arguments.
-
-   *timeout* can be used to control the maximum number of seconds to wait before
-   returning. If *timeout* is not specified or None then there is no limit
-   to the wait time.
-
-   *return_when* indicates when the method should return. It must be one of the
-   following constants:
-
-    FIRST_COMPLETED - The method will return when any call finishes.                              |
-    FIRST_EXCEPTION - The method will return when any call raises an exception
-    or when all calls finish.                                |
-    ALL_COMPLETED - The method will return when all calls finish.                                |
-      +-----------------------------+----------------------------------------+
-      | :const:`RETURN_IMMEDIATELY` | The method will return immediately.    |
-      +-----------------------------+----------------------------------------+
-
-
-    The core idea behind the module is the concept of a Future. A Future is a
-    XXX. The Future class makes little committement to the evaluation mode
-    being used e.g. the same class could be used for lazy or eager evaluation,
-    for evaluation using threads or using remote procedure calls.
-
-    Future implements a single operation:
-        - cancel(): Cancels the Future if possible. Returns True if the
-                    operation was cancelled, False otherwise.
-
-    and several getters:
-        - cancelled: True if the Future was cancelled, False otherwise
-        - running: True if the call that the Future represents is currently
-                   being evaluated, False otherwise.
-        - done: True if the 
-        - result
-        - exception
-
+    import functools
+    import urllib.request
+    import futures
     
-Rationale:
-
-    The proposed design of this module was heavily influenced by the the Java
-    XXX package [1]. The conceptual basis of the module is the Future class [2], which
-    is XXX.
-    The Future class makes little committement to the evaluation mode
-    being used e.g. if can be be used for lazy or eager evaluation, for evaluation
-    using threads or using remote procedure calls. Futures have already been
-    seen in Python as part of recipe [XXX].
-
-    Futures are created by an Excecutor [Java ref]. An Executor takes callables
-    as arguments and returns a list of Future instances. 
+    URLS = ['http://www.foxnews.com/',
+            'http://www.cnn.com/',
+            'http://europe.wsj.com/',
+            'http://www.bbc.co.uk/',
+            'http://some-made-up-domain.com/']
     
-    This PEP proposes the addition 
-
-
-    Python currently distinguishes between two kinds of integers
-    (ints): regular or short ints, limited by the size of a C long
-    (typically 32 or 64 bits), and long ints, which are limited only
-    by available memory.  When operations on short ints yield results
-    that don't fit in a C long, they raise an error.  There are some
-    other distinctions too.  This PEP proposes to do away with most of
-    the differences in semantics, unifying the two types from the
-    perspective of the Python user.
-
-
-Abstract
-
+    def load_url(url, timeout):
+        return urllib.request.urlopen(url, timeout=timeout).read()
     
-"""
+    with futures.ThreadPoolExecutor(max_threads=5) as executor:
+       future_list = executor.run_to_futures(
+               [functools.partial(load_url, url, 30) for url in URLS])
+    
+    for url, future in zip(URLS, future_list):
+        if future.exception() is not None:
+            print('%r generated an exception: %s' % (url, future.exception()))
+        else:
+            print('%r page is %d bytes' % (url, len(future.result())))
+
+Interface
+---------
+
+The proposed package provides three core class: `Executors`, `FutureLists` and
+`Futures`.
+
+Executor
+''''''''
+
+`Executor` is an abstract class that provides methods to execute calls
+asynchronously.
+
+`run_to_futures(calls, timeout=None, return_when=ALL_COMPLETED)`
+
+Schedule the given calls for execution and return a `FutureList`
+containing a `Future` for each call. This method should always be
+called using keyword arguments, which are:
+
+*calls* must be a sequence of callables that take no arguments.
+
+*timeout* can be used to control the maximum number of seconds to wait before
+returning. If *timeout* is not specified or ``None`` then there is no limit
+to the wait time.
+
+*return_when* indicates when the method should return. It must be one of the
+following constants:
+
+============================= ==================================================
+ Constant                      Description
+============================= ==================================================
+`FIRST_COMPLETED`             The method will return when any call finishes.
+`FIRST_EXCEPTION`             The method will return when any call raises an
+                              exception or when all calls finish.
+`ALL_COMPLETED`               The method will return when all calls finish.
+`RETURN_IMMEDIATELY`          The method will return immediately.
+============================= ==================================================
+
+`run_to_results(calls, timeout=None)`
+
+Schedule the given calls for execution and return an iterator over their
+results. The returned iterator raises a `TimeoutError` if `__next__()` is called
+and the result isn't available after *timeout* seconds from the original call to
+`run_to_results()`. If *timeout* is not specified or ``None`` then there is no
+limit to the wait time. If a call raises an exception then that exception will
+be raised when its value is retrieved from the iterator.
+
+`map(func, *iterables, timeout=None)`
+
+Equivalent to map(*func*, *\*iterables*) but executed asynchronously and
+possibly out-of-order. The returned iterator raises a `TimeoutError` if
+`__next__()` is called and the result isn't available after *timeout* seconds
+from the original call to `run_to_results()`. If *timeout* is not specified or
+``None`` then there is no limit to the wait time. If a call raises an exception
+then that exception will be raised when its value is retrieved from the iterator.
+
+`Executor.shutdown()`
+
+Signal the executor that it should free any resources that it is using when
+the currently pending futures are done executing. Calls to
+`Executor.run_to_futures`, `Executor.run_to_results` and
+`Executor.map` made after shutdown will raise `RuntimeError`.
+
+ThreadPoolExecutor
+''''''''''''''''''
+
+The `ThreadPoolExecutor` class is an `Executor` subclass that uses a pool of
+threads to execute calls asynchronously.
+
+`__init__(max_threads)`
+
+Executes calls asynchronously using at pool of at most *max_threads* threads.
+
+FutureList Objects
+''''''''''''''''''
+
+The `FutureList` class is an immutable container for `Future` instances and
+should only be instantiated by `Executor.run_to_futures`.
+
+`wait(timeout=None, return_when=ALL_COMPLETED)`
+
+Wait until the given conditions are met. This method should always be called
+using keyword arguments, which are:
+
+*timeout* can be used to control the maximum number of seconds to wait before
+returning. If *timeout* is not specified or ``None`` then there is no limit
+to the wait time.
+
+*return_when* indicates when the method should return. It must be one of the
+following constants:
+
+============================= ==================================================
+ Constant                      Description                            
+============================= ==================================================
+`FIRST_COMPLETED`             The method will return when any call finishes.
+`FIRST_EXCEPTION`             The method will return when any call raises an
+                              exception or when all calls finish.
+`ALL_COMPLETED`               The method will return when all calls finish.
+`RETURN_IMMEDIATELY`          The method will return immediately.
+                              This option is only available for consistency with
+                              `Executor.run_to_results` and is not likely to be
+                              useful.
+============================= ==================================================
+
+`cancel(timeout=None)`
+
+Cancel every `Future` in the list and wait up to *timeout* seconds for
+them to be cancelled or, if any are already running, to finish. Raises a
+`TimeoutError` if the running calls do not complete before the timeout.
+If *timeout* is not specified or ``None`` then there is no limit to the wait
+time.
+
+`has_running_futures()`
+
+Return `True` if any `Future` in the list is currently executing.
+
+`has_cancelled_futures()`
+
+Return `True` if any `Future` in the list was successfully cancelled.
+
+`has_done_futures()`
+
+Return `True` if any `Future` in the list has completed or was successfully
+cancelled.
+
+`has_successful_futures()`
+
+Return `True` if any `Future` in the list has completed without raising an
+exception.
+
+`has_exception_futures()`
+
+Return `True` if any `Future` in the list completed by raising an
+exception.
+
+`cancelled_futures()`
+
+Return an iterator over all `Future` instances that were successfully
+cancelled.
+
+`done_futures()`
+
+Return an iterator over all `Future` instances that completed are were cancelled.
+
+`successful_futures()`
+
+Return an iterator over all `Future` instances that completed without raising an
+exception.
+
+`exception_futures()`
+
+Return an iterator over all `Future` instances that completed by raising an
+exception.
+
+`running_futures()`
+
+Return an iterator over all `Future` instances that are currently executing.
+
+`__len__()`
+
+Return the number of futures in the `FutureList`.
+
+`__getitem__(i)`
+
+Return the ith `Future` in the list. The order of the futures in the
+`FutureList` matches the order of the class passed to
+`Executor.run_to_futures`
+
+`FutureList.__contains__(future)`
+
+Return `True` if *future* is in the `FutureList`.
+
+Future Objects
+''''''''''''''
+
+The `Future` class encapulates the asynchronous execution of a function
+or method call. `Future` instances are created by the
+`Executor.run_to_futures` and bundled into a `FutureList`.
+
+`cancel()`
+
+Attempt to cancel the call. If the call is currently being executed then
+it cannot be cancelled and the method will return `False`, otherwise the call
+will be cancelled and the method will return `True`.
+
+`Future.cancelled()`
+
+Return `True` if the call was successfully cancelled.
+
+`Future.done()`
+
+Return `True` if the call was successfully cancelled or finished running.
+
+`result(timeout=None)`
+
+Return the value returned by the call. If the call hasn't yet completed then
+this method will wait up to *timeout* seconds. If the call hasn't completed
+in *timeout* seconds then a `TimeoutError` will be raised. If *timeout*
+is not specified or ``None`` then there is no limit to the wait time.
+
+If the future is cancelled before completing then `CancelledError` will
+be raised.
+
+If the call raised then this method will raise the same exception.
+
+`exception(timeout=None)`
+
+Return the exception raised by the call. If the call hasn't yet completed
+then this method will wait up to *timeout* seconds. If the call hasn't
+completed in *timeout* seconds then a `TimeoutError` will be raised.
+If *timeout* is not specified or ``None`` then there is no limit to the wait
+time.
+
+If the future is cancelled before completing then `CancelledError` will
+be raised.
+
+If the call completed without raising then ``None`` is returned.   
+
+`index`
+
+int indicating the index of the future in its `FutureList`.
+
+=========
+Rationale
+=========
+
+The proposed design of this module was heavily influenced by the the Java
+java.util.concurrent package [1]_. The conceptual basis of the module, as in
+Java, is the Future class, which represents the progress and results of an
+asynchronous computation. The Future class makes little committement to the
+evaluation mode being used e.g. it can be be used to represent lazy or eager
+evaluation, for evaluation using threads or using processes.
+
+Futures are created by concrete implementations of the Executor class
+(called ExecutorService in Java). The reference implementation provides
+a class that uses a thread pool to eagerly evaluate computations and a
+prototype implementation of a class that uses a process pool but the
+design is flexible enough to accomodate other execution strategies.
+
+Futures have already been seen in Python as part of a popular Python
+cookbook recipe [2]_ and have discussed on the Python-3000 mailing list [3]_.
+
+The proposed design is explicit i.e. it requires that clients be aware that
+they are consuming Futures. It would be possible to design a module that
+would return proxy objects (in the style of `weakref`) that could be used
+transparently. It is possible to build a proxy implementation on top of
+the proposed explicit mechanism.
+
+The proposed design does not introduce any changes to Python language syntax
+or semantics. Special syntax could be introduced [4]_ to mark function and
+method calls as asynchronous. A proxy result would be returned while the
+operation is eagerly evaluated asynchronously, and execution would only
+block if the proxy object were used before the operation completed.
+
+==========  
+References
+==========
+
+..  [1]
+
+    `java.util.concurrent` package documentation
+    `http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/package-summary.html`
+
+..  [2]
+
+    Pythono Cookbook recipe 84317, "Easy threading with Futures"
+    `http://code.activestate.com/recipes/84317/`
+
+..  [3]
+
+    `Python-3000` thread, "mechanism for handling asynchronous concurrency"
+    `http://mail.python.org/pipermail/python-3000/2006-April/000960.html`
+
+
+..  [4]
+
+    `Python 3000` thread, "Futures in Python 3000 (was Re: mechanism for handling asynchronous concurrency)"
+    `http://mail.python.org/pipermail/python-3000/2006-April/000970.html`
+
+=========
+Copyright
+=========
+
+This document has been placed in the public domain.
+
+
+
+..
+   Local Variables:
+   mode: indented-text
+   indent-tabs-mode: nil
+   sentence-end-double-space: t
+   fill-column: 70
+   coding: utf-8
+   End:

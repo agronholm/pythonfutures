@@ -54,16 +54,22 @@ subclasses: :class:`ThreadPoolExecutor` and (experimental)
 .. method:: Executor.run_to_results(calls, timeout=None)
 
    Schedule the given calls for execution and return an iterator over their
-   results. Raises a :exc:`TimeoutError` if the calls do not complete before 
-   *timeout* seconds. If *timeout* is not specified or ``None`` then there is no
-   limit to the wait time.
+   results. The returned iterator raises a :exc:`TimeoutError` if
+   :meth:`__next__()` is called and the result isn't available after
+   *timeout* seconds from the original call to :meth:`run_to_results()`. If
+   *timeout* is not specified or ``None`` then there is no limit to the wait
+   time. If a call raises an exception then that exception will be raised when
+   its value is retrieved from the iterator.
 
 .. method:: Executor.map(func, *iterables, timeout=None)
 
-   Equivalent to map(*func*, *\*iterables*) but executed asynchronously. Raises
-   a :exc:`TimeoutError` if the map cannot be generated before *timeout*
-   seconds. If *timeout* is not specified or ``None`` then there is no limit to
-   the wait time.
+   Equivalent to map(*func*, *\*iterables*) but executed asynchronously and
+   possibly out-of-order. The returned iterator raises a :exc:`TimeoutError` if
+   :meth:`__next__()` is called and the result isn't available after
+   *timeout* seconds from the original call to :meth:`run_to_results()`. If
+   *timeout* is not specified or ``None`` then there is no limit to the wait
+   time. If a call raises an exception then that exception will be raised when
+   its value is retrieved from the iterator.
 
 .. method:: Executor.shutdown()
 
@@ -201,25 +207,25 @@ instances and should only be instantiated by :meth:`Executor.run_to_futures`.
 
 .. method:: FutureList.has_running_futures()
 
-   Return true if any :class:`Future` in the list is currently executing.
+   Return `True` if any :class:`Future` in the list is currently executing.
 
 .. method:: FutureList.has_cancelled_futures()
 
-   Return true if any :class:`Future` in the list was successfully cancelled.
+   Return `True` if any :class:`Future` in the list was successfully cancelled.
 
 .. method:: FutureList.has_done_futures()
 
-   Return true if any :class:`Future` in the list has completed or was
+   Return `True` if any :class:`Future` in the list has completed or was
    successfully cancelled.
 
 .. method:: FutureList.has_successful_futures()
 
-   Return true if any :class:`Future` in the list has completed without raising
+   Return `True` if any :class:`Future` in the list has completed without raising
    an exception.
 
 .. method:: FutureList.has_exception_futures()
 
-   Return true if any :class:`Future` in the list completed by raising an
+   Return `True` if any :class:`Future` in the list completed by raising an
    exception.
 
 .. method:: FutureList.cancelled_futures()
@@ -259,7 +265,7 @@ instances and should only be instantiated by :meth:`Executor.run_to_futures`.
 
 .. method:: FutureList.__contains__(future)
 
-   Return true if *future* is in the list.
+   Return `True` if *future* is in the :class:`FutureList`.
 
 Future Objects
 --------------
@@ -271,16 +277,16 @@ or method call. :class:`Future` instances are created by the
 .. method:: Future.cancel()
 
    Attempt to cancel the call. If the call is currently being executed then
-   it cannot be cancelled and the method will return false, otherwise the call
-   will be cancelled and the method will return true.
+   it cannot be cancelled and the method will return `False`, otherwise the call
+   will be cancelled and the method will return `True`.
 
 .. method:: Future.cancelled()
 
-   Return true if the call was successfully cancelled.
+   Return `True` if the call was successfully cancelled.
 
 .. method:: Future.done()
 
-   Return true if the call was successfully cancelled or finished running.
+   Return `True` if the call was successfully cancelled or finished running.
 
 .. method:: Future.result(timeout=None)
 
