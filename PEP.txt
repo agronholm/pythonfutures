@@ -313,6 +313,17 @@ method calls as asynchronous. A proxy result would be returned while the
 operation is eagerly evaluated asynchronously, and execution would only
 block if the proxy object were used before the operation completed.
 
+========================
+Reference Implementation
+========================
+
+The reference implementation [5]_ contains a complete and tested implementation
+of a thread-based `Executor` based on the proposed design. It also includes a
+process-based `Executor` implementation that is largely complete but can deadlock
+in certain cases. These cases are not currently well understood and must be
+resolved before the process-based implementation can be considered for
+inclusion.
+
 ==========  
 References
 ==========
@@ -337,6 +348,10 @@ References
 
     `Python 3000` thread, "Futures in Python 3000 (was Re: mechanism for handling asynchronous concurrency)"
     `http://mail.python.org/pipermail/python-3000/2006-April/000970.html`
+
+..  [5]
+
+    Reference `futures` implementation `http://code.google.com/p/pythonfutures`
 
 =========
 Copyright
