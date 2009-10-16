@@ -319,10 +319,10 @@ Reference Implementation
 
 The reference implementation [5]_ contains a complete and tested implementation
 of a thread-based `Executor` based on the proposed design. It also includes a
-process-based `Executor` implementation that is largely complete but can deadlock
-in certain cases. These cases are not currently well understood and must be
-resolved before the process-based implementation can be considered for
-inclusion.
+process-based `Executor` implementation that is largely complete but can
+deadlock in certain cases. These cases are not currently well understood and must
+be resolved before the process-based implementation can be considered for
+inclusion in this PEP/package.
 
 ==========  
 References
