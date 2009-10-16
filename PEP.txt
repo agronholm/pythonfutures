@@ -40,20 +40,20 @@ Example
     import functools
     import urllib.request
     import futures
-    
+
     URLS = ['http://www.foxnews.com/',
             'http://www.cnn.com/',
             'http://europe.wsj.com/',
             'http://www.bbc.co.uk/',
             'http://some-made-up-domain.com/']
-    
+
     def load_url(url, timeout):
         return urllib.request.urlopen(url, timeout=timeout).read()
-    
+
     with futures.ThreadPoolExecutor(max_threads=5) as executor:
        future_list = executor.run_to_futures(
                [functools.partial(load_url, url, 30) for url in URLS])
-    
+
     for url, future in zip(URLS, future_list):
         if future.exception() is not None:
             print('%r generated an exception: %s' % (url, future.exception()))
@@ -151,7 +151,7 @@ to the wait time.
 following constants:
 
 ============================= ==================================================
- Constant                      Description                            
+ Constant                      Description
 ============================= ==================================================
 `FIRST_COMPLETED`             The method will return when any call finishes.
 `FIRST_EXCEPTION`             The method will return when any call raises an
@@ -275,7 +275,7 @@ time.
 If the future is cancelled before completing then `CancelledError` will
 be raised.
 
-If the call completed without raising then ``None`` is returned.   
+If the call completed without raising then ``None`` is returned.
 
 `index`
 
@@ -324,7 +324,7 @@ deadlock in certain cases. These cases are not currently well understood and mus
 be resolved before the process-based implementation can be considered for
 inclusion in this PEP/package.
 
-==========  
+==========
 References
 ==========
 
