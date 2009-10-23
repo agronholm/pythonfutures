@@ -18,6 +18,7 @@ import weakref
 
 _thread_references = set()
 _shutdown = False
+EXTRA_QUEUED_CALLS = 1
 
 def _python_exit():
     global _shutdown
@@ -143,7 +144,8 @@ class ProcessPoolExecutor(Executor):
         # Make the call queue slightly larger than the number of processes to
         # prevent the worker processes from starving but to make future.cancel()
         # responsive.
-        self._call_queue = multiprocessing.Queue(self._max_processes + 1)
+        self._call_queue = multiprocessing.Queue(self._max_processes +
+                                                 EXTRA_QUEUED_CALLS)
         self._result_queue = multiprocessing.Queue()
         self._work_ids = queue.Queue()
         self._queue_management_thread = None
