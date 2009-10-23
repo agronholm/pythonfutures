@@ -47,6 +47,10 @@ def download_urls_with_executor(urls, executor, timeout=60):
 def main():
     for name, fn in [('sequential',
                       functools.partial(download_urls_sequential, URLS)),
+                    ('processes',
+                      functools.partial(download_urls_with_executor,
+                                        URLS,
+                                        futures.ProcessPoolExecutor(10))),
                      ('threads',
                       functools.partial(download_urls_with_executor,
                                         URLS,

@@ -90,8 +90,8 @@ def _worker(executor_reference, work_queue):
             except queue.Empty:
                 executor = executor_reference()
                 # Exit if:
-                #   - The interpreter is shutting down.
-                #   - The executor that owns the worker has been collected.
+                #   - The interpreter is shutting down OR
+                #   - The executor that owns the worker has been collected OR
                 #   - The executor that owns the worker has been shutdown.
                 if _shutdown or executor is None or executor._shutdown:
                     return

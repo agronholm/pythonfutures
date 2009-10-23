@@ -816,15 +816,15 @@ class FutureListTests(unittest.TestCase):
                          '[#pending=4 #cancelled=3 #running=2 #finished=6]>')
 
 def test_main():
-    test.support.run_unittest(#ProcessPoolCancelTests,
+    test.support.run_unittest(ProcessPoolCancelTests,
                               ThreadPoolCancelTests,
-                              #ProcessPoolExecutorTest,
+                              ProcessPoolExecutorTest,
                               ThreadPoolExecutorTest,
-                              #ProcessPoolWaitTests,
+                              ProcessPoolWaitTests,
                               ThreadPoolWaitTests,
                               FutureTests,
                               FutureListTests,
-                              #ProcessPoolShutdownTest,
+                              ProcessPoolShutdownTest,
                               ThreadPoolShutdownTest)
 
 if __name__ == "__main__":

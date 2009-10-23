@@ -49,6 +49,10 @@ def main():
                      ('threads',
                       functools.partial(download_urls_with_executor,
                                         URLS,
+                                        futures.ThreadPoolExecutor(10))),
+                     ('processes',
+                      functools.partial(download_urls_with_executor,
+                                        URLS,
                                         futures.ThreadPoolExecutor(10)))]:
         print '%s: ' % name.ljust(12),
         start = time.time()
