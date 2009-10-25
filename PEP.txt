@@ -15,25 +15,58 @@ Abstract
 ========
 
 This PEP proposes a design for a package that facilitates the evaluation of
-callables using threads.
+callables using threads and processes.
 
 ==========
 Motivation
 ==========
 
-Python currently has powerful primitives to construct multi-threaded
-applications but parallelizing simple operations requires a lot of work i.e.
-explicitly launching threads, constructing a work/results queue, and waiting
-for completion or some other termination condition (e.g. failure, timeout). It
-is also difficult to design an application with a global thread limit when each
-component invents its own threading stategy.
+Python currently has powerful primitives to construct multi-threaded and
+multi-process applications but parallelizing simple operations requires a lot of
+work i.e. explicitly launching processes/threads, constructing a work/results
+queue, and waiting for completion or some other termination condition (e.g.
+failure, timeout). It is also difficult to design an application with a global
+process/thread limit when each component invents its own execution strategy.
 
 =============
 Specification
 =============
 
-Example
--------
+Check Prime Example
+-------------------
+
+::
+
+    import futures
+    import math
+
+    PRIMES = [
+        112272535095293,
+        112451234512351,
+        112582705942171,
+        112272535095293,
+        115280095190773,
+        115797848077099,
+        115912095245127,
+        117450548693743,
+        993960000099397]
+
+    def is_prime(n):
+        if n % 2 == 0:
+            return False
+
+        sqrt_n = int(math.floor(math.sqrt(n)))
+        for i in range(3, sqrt_n + 1, 2):
+            if n % i == 0:
+                return False
+        return True
+
+    with futures.ProcessPoolExecutor() as executor:
+        for number, prime in zip(PRIMES, executor.map(is_prime, PRIMES)):
+            print('%d: %s' % (number, prime))
+
+Web Crawl Example
+-----------------
 
 ::
 
@@ -123,6 +156,18 @@ the currently pending futures are done executing. Calls to
 `Executor.run_to_futures`, `Executor.run_to_results` and
 `Executor.map` made after shutdown will raise `RuntimeError`.
 
+ProcessPoolExecutor
+'''''''''''''''''''
+
+The `ProcessPoolExecutor` class is an `Executor` subclass that uses a pool of
+processes to execute calls asynchronously.
+
+`__init__(max_processes)`
+
+Executes calls asynchronously using a pool of a most *max_processes*
+processes. If *max_processes* is ``None`` or not given then as many worker
+processes will be created as the machine has processors.
+
 ThreadPoolExecutor
 ''''''''''''''''''
 
@@ -131,7 +176,7 @@ threads to execute calls asynchronously.
 
 `__init__(max_threads)`
 
-Executes calls asynchronously using at pool of at most *max_threads* threads.
+Executes calls asynchronously using a pool of at most *max_threads* threads.
 
 FutureList Objects
 ''''''''''''''''''
@@ -236,7 +281,7 @@ Return `True` if *future* is in the `FutureList`.
 Future Objects
 ''''''''''''''
 
-The `Future` class encapulates the asynchronous execution of a function
+The `Future` class encapsulates the asynchronous execution of a function
 or method call. `Future` instances are created by the
 `Executor.run_to_futures` and bundled into a `FutureList`.
 
@@ -290,15 +335,14 @@ Rationale
 The proposed design of this module was heavily influenced by the the Java
 java.util.concurrent package [1]_. The conceptual basis of the module, as in
 Java, is the Future class, which represents the progress and results of an
-asynchronous computation. The Future class makes little committement to the
+asynchronous computation. The Future class makes little commitment to the
 evaluation mode being used e.g. it can be be used to represent lazy or eager
 evaluation, for evaluation using threads or using processes.
 
 Futures are created by concrete implementations of the Executor class
 (called ExecutorService in Java). The reference implementation provides
-a class that uses a thread pool to eagerly evaluate computations and a
-prototype implementation of a class that uses a process pool but the
-design is flexible enough to accomodate other execution strategies.
+a classes that use either a process a thread pool to eagerly evaluate
+computations.
 
 Futures have already been seen in Python as part of a popular Python
 cookbook recipe [2]_ and have discussed on the Python-3000 mailing list [3]_.
@@ -319,12 +363,8 @@ block if the proxy object were used before the operation completed.
 Reference Implementation
 ========================
 
-The reference implementation [5]_ contains a complete and tested implementation
-of a thread-based `Executor` based on the proposed design. It also includes a
-process-based `Executor` implementation that is largely complete but can
-deadlock in certain cases. These cases are not currently well understood and
-must be resolved before the process-based implementation can be considered for
-inclusion in this PEP/package.
+The reference implementation [5]_ contains a complete implementation of the
+proposed design.
 
 ==========
 References
@@ -337,7 +377,7 @@ References
 
 .. [2]
 
-   Pythono Cookbook recipe 84317, "Easy threading with Futures"
+   Python Cookbook recipe 84317, "Easy threading with Futures"
    `http://code.activestate.com/recipes/84317/`
 
 .. [3]

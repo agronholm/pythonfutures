@@ -120,12 +120,11 @@ ThreadPoolExecutor Example
 ProcessPoolExecutor Objects
 ---------------------------
 
-The :class:`ProcessPoolExecutor` class is an **experimental** :class:`Executor`
-subclass that uses a pool of processes to execute calls asynchronously. There
-are situations where it can deadlock. :class:`ProcessPoolExecutor` uses the
-:mod:`multiprocessing` module, which allows it to side-step the
-:term:`Global Interpreter Lock` but also means that only picklable objects can
-be executed and returned.
+The :class:`ProcessPoolExecutor` class is an :class:`Executor` subclass that
+uses a pool of processes to execute calls asynchronously.
+:class:`ProcessPoolExecutor` uses the :mod:`multiprocessing` module, which
+allows it to side-step the :term:`Global Interpreter Lock` but also means that
+only picklable objects can be executed and returned.
 
 .. class:: ProcessPoolExecutor(max_processes=None)
 
