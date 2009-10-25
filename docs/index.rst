@@ -2,7 +2,7 @@
 ===========================================
 
 .. module:: futures
-   :synopsis: Execute computations asynchronously using threads or (experimentally) processes. 
+   :synopsis: Execute computations asynchronously using threads or processes. 
 
 The :mod:`futures` module provides a high-level interface for asynchronously
 executing functions and methods.
@@ -17,8 +17,7 @@ Executor Objects
 
 :class:`Executor` is an abstract class that provides methods to execute calls
 asynchronously. It should not be used directly, but through its two
-subclasses: :class:`ThreadPoolExecutor` and (experimental)
-:class:`ProcessPoolExecutor`.
+subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
 
 .. method:: Executor.run_to_futures(calls, timeout=None, return_when=ALL_COMPLETED)
 
