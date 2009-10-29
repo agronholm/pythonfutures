@@ -233,7 +233,7 @@ instances and should only be instantiated by :meth:`Executor.run_to_futures`.
 
 .. method:: FutureList.done_futures()
 
-   Return an iterator over all :class:`Future` instances that completed are
+   Return an iterator over all :class:`Future` instances that completed or
    were cancelled.
 
 .. method:: FutureList.successful_futures()
@@ -269,7 +269,7 @@ Future Objects
 --------------
 
 The :class:`Future` class encapulates the asynchronous execution of a function
-or method call. :class:`Future` instances are created by the
+or method call. :class:`Future` instances are created by
 :meth:`Executor.run_to_futures` and bundled into a :class:`FutureList`.
 
 .. method:: Future.cancel()

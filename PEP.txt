@@ -26,7 +26,8 @@ multi-process applications but parallelizing simple operations requires a lot of
 work i.e. explicitly launching processes/threads, constructing a work/results
 queue, and waiting for completion or some other termination condition (e.g.
 failure, timeout). It is also difficult to design an application with a global
-process/thread limit when each component invents its own execution strategy.
+process/thread limit when each component invents its own parallel execution
+strategy.
 
 =============
 Specification
@@ -61,6 +62,7 @@ Check Prime Example
                 return False
         return True
 
+    # Contructs one worker process per processor.
     with futures.ProcessPoolExecutor() as executor:
         for number, prime in zip(PRIMES, executor.map(is_prime, PRIMES)):
             print('%d: %s' % (number, prime))
@@ -247,7 +249,7 @@ cancelled.
 
 `done_futures()`
 
-Return an iterator over all `Future` instances that completed are were
+Return an iterator over all `Future` instances that completed or were
 cancelled.
 
 `successful_futures()`
@@ -282,7 +284,7 @@ Future Objects
 ''''''''''''''
 
 The `Future` class encapsulates the asynchronous execution of a function
-or method call. `Future` instances are created by the
+or method call. `Future` instances are created by
 `Executor.run_to_futures` and bundled into a `FutureList`.
 
 `cancel()`
@@ -337,11 +339,11 @@ java.util.concurrent package [1]_. The conceptual basis of the module, as in
 Java, is the Future class, which represents the progress and results of an
 asynchronous computation. The Future class makes little commitment to the
 evaluation mode being used e.g. it can be be used to represent lazy or eager
-evaluation, for evaluation using threads or using processes.
+evaluation, for evaluation using threads, processes or remote procedure call.
 
 Futures are created by concrete implementations of the Executor class
 (called ExecutorService in Java). The reference implementation provides
-a classes that use either a process a thread pool to eagerly evaluate
+classes that use either a process a thread pool to eagerly evaluate
 computations.
 
 Futures have already been seen in Python as part of a popular Python
@@ -364,7 +366,7 @@ Reference Implementation
 ========================
 
 The reference implementation [5]_ contains a complete implementation of the
-proposed design.
+proposed design. It has been tested on Linux and Mac OS X.
 
 ==========
 References
