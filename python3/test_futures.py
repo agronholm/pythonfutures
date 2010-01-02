@@ -8,10 +8,10 @@ import multiprocessing
 import futures
 import futures._base
 from futures._base import (
-    PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future)
+    PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future, wait)
 
 def create_future(state=PENDING, exception=None, result=None):
-    f = Future(0)
+    f = Future()
     f._state = state
     f._exception = exception
     f._result = result
@@ -180,7 +180,7 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
 class WaitsTest(unittest.TestCase):
     def test_concurrent_waits(self):
         def wait_for_ALL_COMPLETED():
-            fs.wait(return_when=futures.ALL_COMPLETED)
+            wait([f1, f2, f3, f4], return_when=futures.ALL_COMPLETED)
             self.assertTrue(f1.done())
             self.assertTrue(f2.done())
             self.assertTrue(f3.done())
@@ -188,18 +188,18 @@ class WaitsTest(unittest.TestCase):
             all_completed.release()
 
         def wait_for_FIRST_COMPLETED():
-            fs.wait(return_when=futures.FIRST_COMPLETED)
+            wait([f1, f2, f3, f4], return_when=futures.FIRST_COMPLETED)
             self.assertTrue(f1.done())
-            self.assertFalse(f2.done()) # XXX
+            self.assertFalse(f2.done())
             self.assertFalse(f3.done())
             self.assertFalse(f4.done())
             first_completed.release()
 
         def wait_for_FIRST_EXCEPTION():
-            fs.wait(return_when=futures.FIRST_EXCEPTION)
+            wait([f1, f2, f3, f4], return_when=futures.FIRST_EXCEPTION)
             self.assertTrue(f1.done())
             self.assertTrue(f2.done())
-            self.assertFalse(f3.done()) # XXX
+            self.assertFalse(f3.done())
             self.assertFalse(f4.done())
             first_exception.release()
 
@@ -213,11 +213,11 @@ class WaitsTest(unittest.TestCase):
         call4 = Call()
 
         try:
-            fs = self.executor.run_to_futures(
-                    [call1, call2, call3, call4],
-                    return_when=futures.RETURN_IMMEDIATELY)
-            f1, f2, f3, f4 = fs
-    
+            f1 = self.executor.submit(call1)
+            f2 = self.executor.submit(call2)
+            f3 = self.executor.submit(call3)
+            f4 = self.executor.submit(call4)
+
             threads = []
             for wait_test in [wait_for_ALL_COMPLETED,
                               wait_for_FIRST_COMPLETED,
@@ -646,175 +646,6 @@ class FutureTests(unittest.TestCase):
 
         self.assertTrue(isinstance(f1.exception(timeout=5), IOError))
 
-class FutureListTests(unittest.TestCase):
-    # FutureList.wait() is further tested by WaitsTest.
-    # FutureList.cancel() is tested by CancelTests.
-    def test_wait_RETURN_IMMEDIATELY(self):
-        f = futures.FutureList(futures=None, event_sink=None)
-        f.wait(return_when=futures.RETURN_IMMEDIATELY)
-
-    def test_wait_timeout(self):
-        f = futures.FutureList([PENDING_FUTURE],
-                               futures._base.ThreadEventSink())
-
-        for t in [futures.FIRST_COMPLETED,
-                  futures.FIRST_EXCEPTION,
-                  futures.ALL_COMPLETED]:
-            f.wait(timeout=0.1, return_when=t)
-            self.assertFalse(PENDING_FUTURE.done())
-
-    def test_wait_all_done(self):
-        f = futures.FutureList([CANCELLED_FUTURE,
-                                CANCELLED_AND_NOTIFIED_FUTURE,
-                                SUCCESSFUL_FUTURE,
-                                EXCEPTION_FUTURE],
-                               futures._base.ThreadEventSink())
-
-        f.wait(return_when=futures.ALL_COMPLETED)
-
-    def test_filters(self):
-        fs = [PENDING_FUTURE,
-              RUNNING_FUTURE,
-              CANCELLED_FUTURE,
-              CANCELLED_AND_NOTIFIED_FUTURE,
-              EXCEPTION_FUTURE,
-              SUCCESSFUL_FUTURE]
-        f = futures.FutureList(fs, None)
-
-        self.assertEqual(list(f.running_futures()), [RUNNING_FUTURE])
-        self.assertEqual(list(f.cancelled_futures()),
-                        [CANCELLED_FUTURE,
-                         CANCELLED_AND_NOTIFIED_FUTURE])
-        self.assertEqual(list(f.done_futures()),
-                         [CANCELLED_FUTURE,
-                          CANCELLED_AND_NOTIFIED_FUTURE,
-                          EXCEPTION_FUTURE,
-                          SUCCESSFUL_FUTURE])
-        self.assertEqual(list(f.successful_futures()),
-                         [SUCCESSFUL_FUTURE])
-        self.assertEqual(list(f.exception_futures()),
-                         [EXCEPTION_FUTURE])
-
-    def test_has_running_futures(self):
-        self.assertFalse(
-                futures.FutureList([PENDING_FUTURE,
-                                    CANCELLED_FUTURE,
-                                    CANCELLED_AND_NOTIFIED_FUTURE,
-                                    SUCCESSFUL_FUTURE,
-                                    EXCEPTION_FUTURE],
-                                   None).has_running_futures())
-        self.assertTrue(
-                futures.FutureList([RUNNING_FUTURE],
-                                   None).has_running_futures())
-
-    def test_has_cancelled_futures(self):
-        self.assertFalse(
-                futures.FutureList([PENDING_FUTURE,
-                                    RUNNING_FUTURE,
-                                    SUCCESSFUL_FUTURE,
-                                    EXCEPTION_FUTURE],
-                                   None).has_cancelled_futures())
-        self.assertTrue(
-                futures.FutureList([CANCELLED_FUTURE],
-                                   None).has_cancelled_futures())
-
-        self.assertTrue(
-                futures.FutureList([CANCELLED_AND_NOTIFIED_FUTURE],
-                                   None).has_cancelled_futures())
-
-    def test_has_done_futures(self):
-        self.assertFalse(
-                futures.FutureList([PENDING_FUTURE,
-                                    RUNNING_FUTURE],
-                                   None).has_done_futures())
-        self.assertTrue(
-                futures.FutureList([CANCELLED_FUTURE],
-                                   None).has_done_futures())
-
-        self.assertTrue(
-                futures.FutureList([CANCELLED_AND_NOTIFIED_FUTURE],
-                                   None).has_done_futures())
-
-        self.assertTrue(
-                futures.FutureList([EXCEPTION_FUTURE],
-                                   None).has_done_futures())
-
-        self.assertTrue(
-                futures.FutureList([SUCCESSFUL_FUTURE],
-                                   None).has_done_futures())
-
-    def test_has_successful_futures(self):
-        self.assertFalse(
-                futures.FutureList([PENDING_FUTURE,
-                                    RUNNING_FUTURE,
-                                    CANCELLED_FUTURE,
-                                    CANCELLED_AND_NOTIFIED_FUTURE,
-                                    EXCEPTION_FUTURE],
-                                   None).has_successful_futures())
-
-        self.assertTrue(
-                futures.FutureList([SUCCESSFUL_FUTURE],
-                                   None).has_successful_futures())
-
-    def test_has_exception_futures(self):
-        self.assertFalse(
-                futures.FutureList([PENDING_FUTURE,
-                                    RUNNING_FUTURE,
-                                    CANCELLED_FUTURE,
-                                    CANCELLED_AND_NOTIFIED_FUTURE,
-                                    SUCCESSFUL_FUTURE],
-                                   None).has_exception_futures())
-
-        self.assertTrue(
-                futures.FutureList([EXCEPTION_FUTURE],
-                                   None).has_exception_futures())
-
-    def test_get_item(self):
-        fs = [PENDING_FUTURE, RUNNING_FUTURE, CANCELLED_FUTURE]
-        f = futures.FutureList(fs, None)
-        self.assertEqual(f[0], PENDING_FUTURE)
-        self.assertEqual(f[1], RUNNING_FUTURE)
-        self.assertEqual(f[2], CANCELLED_FUTURE)
-        self.assertRaises(IndexError, f.__getitem__, 3)
-
-    def test_len(self):
-        f = futures.FutureList([PENDING_FUTURE,
-                                RUNNING_FUTURE,
-                                CANCELLED_FUTURE],
-                               None)
-        self.assertEqual(len(f), 3)
-
-    def test_iter(self):
-        fs = [PENDING_FUTURE, RUNNING_FUTURE, CANCELLED_FUTURE]
-        f = futures.FutureList(fs, None)
-        self.assertEqual(list(iter(f)), fs)
-
-    def test_contains(self):
-        f = futures.FutureList([PENDING_FUTURE,
-                                RUNNING_FUTURE],
-                               None)
-        self.assertTrue(PENDING_FUTURE in f)
-        self.assertTrue(RUNNING_FUTURE in f)
-        self.assertFalse(CANCELLED_FUTURE in f)
-
-    def test_repr(self):
-        pending = create_future(state=PENDING)
-        cancelled = create_future(state=CANCELLED)
-        cancelled2 = create_future(state=CANCELLED_AND_NOTIFIED)
-        running = create_future(state=RUNNING)
-        finished = create_future(state=FINISHED)
-
-        f = futures.FutureList(
-                [PENDING_FUTURE] * 4 + [CANCELLED_FUTURE] * 2 +
-                [CANCELLED_AND_NOTIFIED_FUTURE] +
-                [RUNNING_FUTURE] * 2 +
-                [SUCCESSFUL_FUTURE, EXCEPTION_FUTURE] * 3,
-                None)
-
-        self.assertEqual(repr(f),
-                         '<FutureList #futures=15 '
-                         '[#pending=4 #cancelled=3 #running=2 #finished=6]>')
-
 def test_main():
     test.support.run_unittest(ProcessPoolCancelTests,
                               ThreadPoolCancelTests,
@@ -823,7 +654,6 @@ def test_main():
                               ProcessPoolWaitTests,
                               ThreadPoolWaitTests,
                               FutureTests,
-                              FutureListTests,
                               ProcessPoolShutdownTest,
                               ThreadPoolShutdownTest)
 

@@ -6,10 +6,8 @@ __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 from futures._base import (PENDING, RUNNING, CANCELLED,
                            CANCELLED_AND_NOTIFIED, FINISHED,
-                           ALL_COMPLETED,
                            LOGGER,
-                           set_future_exception, set_future_result,
-                           Executor, Future, FutureList, ThreadEventSink)
+                           Executor, Future)
 import atexit
 import queue
 import threading
@@ -55,32 +53,30 @@ def _remove_dead_thread_references():
 atexit.register(_python_exit)
 
 class _WorkItem(object):
-    def __init__(self, call, future, completion_tracker):
-        self.call = call
+    def __init__(self, future, fn, args, kwargs):
         self.future = future
-        self.completion_tracker = completion_tracker
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
 
     def run(self):
         with self.future._condition:
             if self.future._state == PENDING:
                 self.future._state = RUNNING
-            elif self.future._state == CANCELLED:
-                with self.completion_tracker._condition:
-                    self.future._state = CANCELLED_AND_NOTIFIED
-                    self.completion_tracker.add_cancelled()
+            elif self.future._cancel():
                 return
             else:
-                LOGGER.critical('Future %s in unexpected state: %d',
+                LOGGER.critical('Future %s in unexpected state: %s',
                                 id(self.future),
                                 self.future._state)
                 return
 
         try:
-            result = self.call()
+            result = self.fn(*self.args, **self.kwargs)
         except BaseException as e:
-            set_future_exception(self.future, self.completion_tracker, e)
+            self.future._set_exception(e)
         else:
-            set_future_result(self.future, self.completion_tracker, result)
+            self.future._set_result(result)
 
 def _worker(executor_reference, work_queue):
     try:
@@ -117,9 +113,22 @@ class ThreadPoolExecutor(Executor):
         self._shutdown = False
         self._shutdown_lock = threading.Lock()
 
+    def submit(self, fn, *args, **kwargs):
+        with self._shutdown_lock:
+            if self._shutdown:
+                raise RuntimeError('cannot schedule new futures after shutdown')
+
+            f = Future()
+            w = _WorkItem(f, fn, args, kwargs)    
+
+            self._work_queue.put(w)
+            self._adjust_thread_count()
+            return f
+
     def _adjust_thread_count(self):
-        for _ in range(len(self._threads),
-                       min(self._max_threads, self._work_queue.qsize())):
+        # TODO(bquinlan): Should avoid creating new threads if there are more
+        # idle threads than items in the work queue.
+        if len(self._threads) < self._max_threads:
             t = threading.Thread(target=_worker,
                                  args=(weakref.ref(self), self._work_queue))
             t.daemon = True
@@ -127,26 +136,8 @@ class ThreadPoolExecutor(Executor):
             self._threads.add(t)
             _thread_references.add(weakref.ref(t))
 
-    def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
-        with self._shutdown_lock:
-            if self._shutdown:
-                raise RuntimeError('cannot run new futures after shutdown')
-
-            futures = []
-            event_sink = ThreadEventSink()
-            for index, call in enumerate(calls):
-                f = Future(index)
-                w = _WorkItem(call, f, event_sink)
-                self._work_queue.put(w)
-                futures.append(f)
-    
-            self._adjust_thread_count()
-            fl = FutureList(futures, event_sink)
-            fl.wait(timeout=timeout, return_when=return_when)
-            return fl
-    run_to_futures.__doc__ = Executor.run_to_futures.__doc__
-
     def shutdown(self):
         with self._shutdown_lock:
             self._shutdown = True
     shutdown.__doc__ = Executor.shutdown.__doc__
+

@@ -45,11 +45,7 @@ Process #1..n:
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
-from futures._base import (PENDING, RUNNING, CANCELLED,
-                           CANCELLED_AND_NOTIFIED, FINISHED,
-                           ALL_COMPLETED,
-                           set_future_exception, set_future_result,
-                           Executor, Future, FutureList, ThreadEventSink)
+from futures._base import RUNNING, Executor, Future
 import atexit
 import queue
 import multiprocessing
@@ -100,10 +96,11 @@ def _remove_dead_thread_references():
 EXTRA_QUEUED_CALLS = 1
 
 class _WorkItem(object):
-    def __init__(self, call, future, completion_tracker):
-        self.call = call
+    def __init__(self, future, fn, args, kwargs):
         self.future = future
-        self.completion_tracker = completion_tracker
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
 
 class _ResultItem(object):
     def __init__(self, work_id, exception=None, result=None):
@@ -112,9 +109,11 @@ class _ResultItem(object):
         self.result = result
 
 class _CallItem(object):
-    def __init__(self, work_id, call):
+    def __init__(self, work_id, fn, args, kwargs):
         self.work_id = work_id
-        self.call = call
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
 
 def _process_worker(call_queue, result_queue, shutdown):
     """Evaluates calls from call_queue and places the results in result_queue.
@@ -137,7 +136,7 @@ def _process_worker(call_queue, result_queue, shutdown):
                 return
         else:
             try:
-                r = call_item.call()
+                r = call_item.fn(*call_item.args, **call_item.kwargs)
             except BaseException as e:
                 result_queue.put(_ResultItem(call_item.work_id,
                                              exception=e))
@@ -181,7 +180,10 @@ def _add_call_item_to_queue(pending_work_items,
             else:
                 with work_item.future._condition:
                     work_item.future._state = RUNNING
-                call_queue.put(_CallItem(work_id, work_item.call),
+                call_queue.put(_CallItem(work_id, 
+                                         work_item.fn,
+                                         work_item.args,
+                                         work_item.kwargs),
                                block=True)
 
 def _queue_manangement_worker(executor_reference,
@@ -242,14 +244,11 @@ def _queue_manangement_worker(executor_reference,
             work_item = pending_work_items[result_item.work_id]
             del pending_work_items[result_item.work_id]
 
-            if result_item.exception:
-                set_future_exception(work_item.future,
-                                     work_item.completion_tracker,
-                                     result_item.exception)
-            else:
-                set_future_result(work_item.future,
-                                     work_item.completion_tracker,
-                                     result_item.result)
+            with work_item.future._condition:
+                if result_item.exception:
+                    work_item.future._set_exception(result_item.exception)
+                else:
+                    work_item.future._set_result(result_item.result)
 
 class ProcessPoolExecutor(Executor):
     def __init__(self, max_processes=None):
@@ -309,30 +308,25 @@ class ProcessPoolExecutor(Executor):
             p.start()
             self._processes.add(p)
 
-    def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
+    def submit(self, fn, *args, **kwargs):
         with self._shutdown_lock:
             if self._shutdown_thread:
-                raise RuntimeError('cannot run new futures after shutdown')
+                raise RuntimeError('cannot schedule new futures after shutdown')
 
-            futures = []
-            event_sink = ThreadEventSink()
+            f = Future()
+            w = _WorkItem(f, fn, args, kwargs)
 
-            for index, call in enumerate(calls):
-                f = Future(index)
-                self._pending_work_items[self._queue_count] = _WorkItem(
-                        call, f, event_sink)
-                self._work_ids.put(self._queue_count)
-                futures.append(f)
-                self._queue_count += 1
+            self._pending_work_items[self._queue_count] = w
+            self._work_ids.put(self._queue_count)
+            self._queue_count += 1
 
             self._start_queue_management_thread()
             self._adjust_process_count()
-            fl = FutureList(futures, event_sink)
-            fl.wait(timeout=timeout, return_when=return_when)
-            return fl
+            return f
 
     def shutdown(self):
         with self._shutdown_lock:
             self._shutdown_thread = True
 
 atexit.register(_python_exit)
+

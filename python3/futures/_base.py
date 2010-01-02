@@ -43,44 +43,6 @@ _handler = logging.StreamHandler()
 LOGGER.addHandler(_handler)
 del _handler
 
-def set_future_exception(future, event_sink, exception):
-    """Sets a future as having terminated with an exception.
-    
-    This function should only be used within the futures package.
-
-    Args:
-        future: The Future that finished with an exception.
-        event_sink: The ThreadEventSink accociated with the Future's FutureList.
-            The event_sink will be notified of the Future's completion, which
-            may unblock some clients that have called FutureList.wait().
-        exception: The expection that executing the Future raised.
-    """
-    with future._condition:
-        future._exception = exception
-        with event_sink._condition:
-            future._state = FINISHED
-            event_sink.add_exception()
-        future._condition.notify_all()
-
-def set_future_result(future, event_sink, result):
-    """Sets a future as having terminated without exception.
-    
-    This function should only be used within the futures package.
-
-    Args:
-        future: The Future that completed.
-        event_sink: The ThreadEventSink accociated with the Future's FutureList.
-            The event_sink will be notified of the Future's completion, which
-            may unblock some clients that have called FutureList.wait().
-        result: The value returned by the Future.
-    """
-    with future._condition:
-        future._result = result
-        with event_sink._condition:
-            future._state = FINISHED
-            event_sink.add_result()
-        future._condition.notify_all()
-
 class Error(Exception):
     pass
 
@@ -90,35 +52,41 @@ class CancelledError(Error):
 class TimeoutError(Error):
     pass
 
-class _WaitTracker(object):
+class _Waiter(object):
     """Provides the event that FutureList.wait(...) blocks on.
 
     """
     def __init__(self):
         self.event = threading.Event()
+        self.result_futures = []
+        self.exception_futures = []
+        self.cancelled_futures = []
 
-    def add_result(self):
-        raise NotImplementedError()
+    def add_result(self, future):
+        self.result_futures.append(future)
 
-    def add_exception(self):
-        raise NotImplementedError()
+    def add_exception(self, future):
+        self.exception_futures.append(future)
 
-    def add_cancelled(self):
-        raise NotImplementedError()
+    def add_cancelled(self, future):
+        self.cancelled_futures.append(future)
     
-class _FirstCompletedWaitTracker(_WaitTracker):
+class _FirstCompletedWaiter(_Waiter):
     """Used by wait(return_when=FIRST_COMPLETED)."""
 
-    def add_result(self):
+    def add_result(self, future):
+        super().add_result(future)
         self.event.set()
 
-    def add_exception(self):
+    def add_exception(self, future):
+        super().add_exception(future)
         self.event.set()
 
-    def add_cancelled(self):
+    def add_cancelled(self, future):
+        super().add_cancelled(future)
         self.event.set()
 
-class _AllCompletedWaitTracker(_WaitTracker):
+class _AllCompletedWaiter(_Waiter):
     """Used by wait(return_when=FIRST_EXCEPTION and ALL_COMPLETED)."""
 
     def __init__(self, num_pending_calls, stop_on_exception):
@@ -126,51 +94,128 @@ class _AllCompletedWaitTracker(_WaitTracker):
         self.stop_on_exception = stop_on_exception
         super().__init__()
 
-    def add_result(self):
+    def _XXX(self):
         self.num_pending_calls -= 1
         if not self.num_pending_calls:
             self.event.set()
 
-    def add_exception(self):
+    def add_result(self, future):
+        super().add_result(future)
+        self._XXX()
+
+    def add_exception(self, future):
+        super().add_exception(future)
         if self.stop_on_exception:
             self.event.set()
         else:
-            self.add_result()
+            self._XXX()
 
-    def add_cancelled(self):
-        self.add_result()
+    def add_cancelled(self, future):
+        super().add_cancelled(future)
+        self._XXX()
 
-class ThreadEventSink(object):
-    """Forwards events to many _WaitTrackers.
+class YYY(object):
+    def __init__(self, futures):
+        self.futures = sorted(futures, key=id)
 
-    Each FutureList has a ThreadEventSink and each call to FutureList.wait()
-    causes a new _WaitTracker to be added to the ThreadEventSink. This design
-    allows many threads to call FutureList.wait() on the same FutureList with
-    different arguments.
+    def __enter__(self):
+        for future in self.futures:
+            future._condition.acquire()
 
-    This class should not be used by clients.
+    def __exit__(self, *args):
+        for future in self.futures:
+            future._condition.release()
+
+def iter_as_completed(fs, timeout=None):
+    if timeout is not None:
+        end_time = timeout + time.time()
+
+    pending = set(fs)
+
+    while pending:
+        if timeout is None:
+            wait_timeout = None
+        else:
+            wait_timeout = end_time - time.time()
+            if wait_timeout < 0:
+                raise TimeoutError()
+
+        print('HERE 2')
+        # TODO(brian@sweetapp.com): wait() involves a lot of setup and
+        # tear-down - check to see if that makes this implementation
+        # unreasonably expensive.
+        completed, pending = wait(pending,
+                                  timeout=wait_timeout,
+                                  return_when=FIRST_COMPLETED)
+
+        for future in completed:
+            print('HERE 5')
+            yield future
+
+def wait(fs, timeout=None, return_when=ALL_COMPLETED):
+    """Wait for the futures in the list to complete.
+
+    Args:
+        timeout: The maximum number of seconds to wait. If None, then there
+            is no limit on the wait time.
+        return_when: Indicates when the method should return. The options
+            are:
+
+            FIRST_COMPLETED - Return when any future finishes or is
+                              cancelled.
+            FIRST_EXCEPTION - Return when any future finishes by raising an
+                              exception. If no future raises and exception
+                              then it is equivalent to ALL_COMPLETED.
+            ALL_COMPLETED -   Return when all futures finish or are cancelled.
+
+    Raises:
+        TimeoutError: If the wait condition wasn't satisfied before the
+            given timeout.
     """
-    def __init__(self):
-        self._condition = threading.Lock()
-        self._waiters = []
+    with YYY(fs):
+        finished = set(
+                f for f in fs
+                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED])
+        not_finished = set(fs) - finished
 
-    def add(self, e):
-        self._waiters.append(e)
+        if (return_when == FIRST_COMPLETED) and finished:
+            return finished, not_finished
+        elif (return_when == FIRST_EXCEPTION) and finished:
+            if any(f for f in finished
+                   if not f.cancelled() and f.exception() is not None):
+                return finished, not_finished
 
-    def remove(self, e):
-        self._waiters.remove(e)
+        if len(finished) == len(fs):
+            return finished, not_finished
 
-    def add_result(self):
-        for waiter in self._waiters:
-            waiter.add_result()
+        if return_when == FIRST_COMPLETED:
+            waiter = _FirstCompletedWaiter()
+        else:
+            pending_count = sum(
+                    f._state not in [CANCELLED_AND_NOTIFIED, FINISHED]
+                    for f in fs)
 
-    def add_exception(self):
-        for waiter in self._waiters:
-            waiter.add_exception()
+            if return_when == FIRST_EXCEPTION:
+               waiter = _AllCompletedWaiter(
+                        pending_count, stop_on_exception=True)
+            elif return_when == ALL_COMPLETED:
+                waiter = _AllCompletedWaiter(
+                        pending_count, stop_on_exception=False)
+            else:
+                raise Exception("XXX")
 
-    def add_cancelled(self):
-        for waiter in self._waiters:
-            waiter.add_cancelled()
+    for f in fs:
+        f._waiters.append(waiter)
+
+    waiter.event.wait(timeout)
+    for f in fs:
+        f._waiters.remove(waiter)
+
+    finished.update(waiter.result_futures)
+    finished.update(waiter.exception_futures)
+    finished.update(waiter.cancelled_futures)
+
+    return finished, set(fs) - finished
 
 class Future(object):
     """Represents the result of an asynchronous computation."""
@@ -182,13 +227,13 @@ class Future(object):
     # When ThreadEventSink._condition and Future._condition must both be held then Future._condition is always acquired
     # first.
 
-    def __init__(self, index):
+    def __init__(self):
         """Initializes the future. Should not be called by clients."""
         self._condition = threading.Condition()
         self._state = PENDING
         self._result = None
         self._exception = None
-        self._index = index
+        self._waiters = []
 
     def __repr__(self):
         with self._condition:
@@ -202,11 +247,6 @@ class Future(object):
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._result.__class__.__name__)
             return '<Future state=%s>' % _STATE_TO_DESCRIPTION_MAP[self._state]
-
-    @property
-    def index(self):
-        """The index of the future in its FutureList."""
-        return self._index
 
     def cancel(self):
         """Cancel the future if possible.
@@ -236,6 +276,33 @@ class Future(object):
         """Return True of the future was cancelled or finished executing."""
         with self._condition:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
+
+    def _cancel(self):
+        with self._condition:
+            if self._state == CANCELLED:
+                self._state = CANCELLED_AND_NOTIFIED
+                for waiter in self._waiters:
+                    waiter.add_cancelled(self)
+                # self._condition.notify_all() is not necessary because 
+                # self.cancel() triggers a notification.
+                return True
+            return False
+
+    def _set_result(self, result):
+        with self._condition:
+            self._result = result
+            self._state = FINISHED
+            for waiter in self._waiters:
+                waiter.add_result(self)
+            self._condition.notify_all()
+
+    def _set_exception(self, exception):
+        with self._condition:
+            self._exception = exception
+            self._state = FINISHED
+            for waiter in self._waiters:
+                waiter.add_exception(self)
+            self._condition.notify_all()
 
     def __get_result(self):
         if self._exception:
@@ -307,229 +374,15 @@ class Future(object):
             else:
                 raise TimeoutError()
 
-
-class FutureList(object):
-    def __init__(self, futures, event_sink):
-        """Initializes the FutureList. Should not be called by clients."""
-        self._futures = futures
-        self._event_sink = event_sink
-
-    def wait(self, timeout=None, return_when=ALL_COMPLETED):
-        """Wait for the futures in the list to complete.
-
-        Args:
-            timeout: The maximum number of seconds to wait. If None, then there
-                is no limit on the wait time.
-            return_when: Indicates when the method should return. The options
-                are:
-
-                FIRST_COMPLETED - Return when any future finishes or is
-                                  cancelled.
-                FIRST_EXCEPTION - Return when any future finishes by raising an
-                                  exception. If no future raises and exception
-                                  then it is equivalent to ALL_COMPLETED.
-                ALL_COMPLETED - Return when all futures finish or are cancelled.
-                RETURN_IMMEDIATELY - Return without waiting (this is not likely
-                                     to be a useful option but it is there to
-                                     be symmetrical with the
-                                     executor.run_to_futures() method.
-
-        Raises:
-            TimeoutError: If the wait condition wasn't satisfied before the
-                given timeout.
-        """
-        if return_when == RETURN_IMMEDIATELY:
-            return
-
-        # Futures cannot change state without this condition being held.
-        with self._event_sink._condition:
-            # Make a quick exit if every future is already done. This check is
-            # necessary because, if every future is in the
-            # CANCELLED_AND_NOTIFIED or FINISHED state then the WaitTracker will
-            # never receive any events.
-            if all(f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
-                   for f in self):
-                return
-
-            if return_when == FIRST_COMPLETED:
-                completed_tracker = _FirstCompletedWaitTracker()
-            else:
-                # Calculate how many events are expected before every future
-                # is complete. This can be done without holding the futures'
-                # locks because a future cannot transition itself into either
-                # of the states being looked for.
-                pending_count = sum(
-                        f._state not in [CANCELLED_AND_NOTIFIED, FINISHED]
-                        for f in self)
-
-                if return_when == FIRST_EXCEPTION:
-                    completed_tracker = _AllCompletedWaitTracker(
-                            pending_count, stop_on_exception=True)
-                elif return_when == ALL_COMPLETED:
-                    completed_tracker = _AllCompletedWaitTracker(
-                            pending_count, stop_on_exception=False)
-
-            self._event_sink.add(completed_tracker)
-
-        try:
-            completed_tracker.event.wait(timeout)
-        finally:
-            self._event_sink.remove(completed_tracker)
-
-    def cancel(self, timeout=None):
-        """Cancel the futures in the list.
-
-        Args:
-            timeout: The maximum number of seconds to wait. If None, then there
-                is no limit on the wait time.
-
-        Raises:
-            TimeoutError: If all the futures were not finished before the
-                given timeout.
-        """
-        for f in self:
-            f.cancel()
-        self.wait(timeout=timeout, return_when=ALL_COMPLETED)
-        if any(not f.done() for f in self):
-            raise TimeoutError()
-
-    def has_running_futures(self):
-        """Returns True if any futures in the list are still running."""
-        return any(self.running_futures())
-
-    def has_cancelled_futures(self):
-        """Returns True if any futures in the list were cancelled."""
-        return any(self.cancelled_futures())
-
-    def has_done_futures(self):
-        """Returns True if any futures in the list are finished or cancelled."""
-        return any(self.done_futures())
-
-    def has_successful_futures(self):
-        """Returns True if any futures in the list finished without raising."""
-        return any(self.successful_futures())
-
-    def has_exception_futures(self):
-        """Returns True if any futures in the list finished by raising."""
-        return any(self.exception_futures())
-
-    def cancelled_futures(self):
-        """Returns all cancelled futures in the list."""
-        return (f for f in self
-                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED])
-  
-    def done_futures(self):
-        """Returns all futures in the list that are finished or cancelled."""
-        return (f for f in self
-                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED])
-
-    def successful_futures(self):
-        """Returns all futures in the list that finished without raising."""
-        return (f for f in self
-                if f._state == FINISHED and f._exception is None)
-  
-    def exception_futures(self):
-        """Returns all futures in the list that finished by raising."""
-        return (f for f in self
-                if f._state == FINISHED and f._exception is not None)
-  
-    def running_futures(self):
-        """Returns all futures in the list that are still running."""
-        return (f for f in self if f._state == RUNNING)
-
-    def __len__(self):
-        return len(self._futures)
-
-    def __getitem__(self, i):
-        return self._futures[i]
-
-    def __iter__(self):
-        return iter(self._futures)
-
-    def __contains__(self, future):
-        return future in self._futures
-
-    def __repr__(self):
-        states = {state: 0 for state in _FUTURE_STATES}
-        for f in self:
-            states[f._state] += 1
-
-        return ('<FutureList #futures=%d '
-                '[#pending=%d #cancelled=%d #running=%d #finished=%d]>' % (
-                len(self),
-                states[PENDING],
-                states[CANCELLED] + states[CANCELLED_AND_NOTIFIED],
-                states[RUNNING],
-                states[FINISHED]))
-
 class Executor(object):
-    """This is an abstract base class for conrete asynchronous executors."""
-    def run_to_futures(self, calls, timeout=None, return_when=ALL_COMPLETED):
-        """Return a list of futures representing the given calls.
+    """This is an abstract base class for concrete asynchronous executors."""
 
-        Args:
-            calls: A sequence of callables that take no arguments. These will
-                be bound to Futures and returned.
-            timeout: The maximum number of seconds to wait. If None, then there
-                is no limit on the wait time.
-            return_when: Indicates when the method should return. The options
-                are:
-
-                FIRST_COMPLETED - Return when any future finishes or is
-                                  cancelled.
-                FIRST_EXCEPTION - Return when any future finishes by raising an
-                                  exception. If no future raises and exception
-                                  then it is equivalent to ALL_COMPLETED.
-                ALL_COMPLETED - Return when all futures finish or are cancelled.
-                RETURN_IMMEDIATELY - Return without waiting.
-
-        Returns:
-            A FutureList containing Futures for the given calls.
-        """
-        raise NotImplementedError()
-
-    def run_to_results(self, calls, timeout=None):
-        """Returns a iterator of the results of the given calls.
-
-        Args:
-            calls: A sequence of callables that take no arguments. These will
-                be called and their results returned.
-            timeout: The maximum number of seconds to wait. If None, then there
-                is no limit on the wait time.
-
-        Returns:
-            An iterator over the results of the given calls. Equivalent to:
-            (call() for call in calls) but the calls may be evaluated
-            out-of-order.
-
-        Raises:
-            TimeoutError: If all the given calls were not completed before the
-                given timeout.
-            Exception: If any call() raises.
-        """
-        if timeout is not None:
-            end_time = timeout + time.time()
-
-        fs = self.run_to_futures(calls, return_when=RETURN_IMMEDIATELY)
-
-        try:
-            for future in fs:
-                if timeout is None:
-                    yield future.result()
-                else:
-                    yield future.result(end_time - time.time())
-        finally:
-            try:
-                fs.cancel(timeout=0)
-            except TimeoutError:
-                pass
-
-    def map(self, func, *iterables, timeout=None):
+    def map(self, fn, *iterables, timeout=None):
         """Returns a iterator equivalent to map(fn, iter).
 
         Args:
-            func: A callable that will take take as many arguments as there
-                are passed iterables.
+            fn: A callable that will take take as many arguments as there are
+                passed iterables.
             timeout: The maximum number of seconds to wait. If None, then there
                 is no limit on the wait time.
 
@@ -542,12 +395,24 @@ class Executor(object):
                 before the given timeout.
             Exception: If fn(*args) raises for any values.
         """
-        calls = [functools.partial(func, *args) for args in zip(*iterables)]
-        return self.run_to_results(calls, timeout)
+        if timeout is not None:
+            end_time = timeout + time.time()
+
+        fs = [self.submit(fn, *args) for args in zip(*iterables)]
+
+        try:
+            for future in fs:
+                if timeout is None:
+                    yield future.result()
+                else:
+                    yield future.result(end_time - time.time())
+        finally:
+            for future in fs:
+                future.cancel()
 
     def shutdown(self):
         """Clean-up. No other methods can be called afterwards."""
-        raise NotImplementedError()
+        pass
 
     def __enter__(self):
         return self
@@ -555,3 +420,4 @@ class Executor(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.shutdown()
         return False
+
