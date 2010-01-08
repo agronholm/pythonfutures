@@ -180,8 +180,9 @@ def as_completed(fs, timeout=None):
             else:
                 wait_timeout = end_time - time.time()
                 if wait_timeout < 0:
-                    raise TimeoutError('timeout with %d unfinished futures' %
-                                       len(pending))
+                    raise TimeoutError(
+                            '%d (of %d) futures unfinished' % (
+                            len(pending), len(fs)))
 
             waiter.event.wait(timeout)
 
