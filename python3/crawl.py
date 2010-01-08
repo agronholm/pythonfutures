@@ -37,7 +37,7 @@ def download_urls_with_executor(urls, executor, timeout=60):
         future_to_url = dict((executor.submit(load_url, url, timeout), url)
                              for url in urls)
 
-        for future in futures.iter_as_completed(future_to_url):
+        for future in futures.as_completed(future_to_url):
             try:
                 url_to_content[future_to_url[future]] = future.result()
             except:

@@ -4,10 +4,14 @@
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
-from futures._base import (FIRST_COMPLETED, FIRST_EXCEPTION,
-                           ALL_COMPLETED, RETURN_IMMEDIATELY,
-                           CancelledError, TimeoutError,
-                           Future, wait, iter_as_completed) 
+from futures._base import (FIRST_COMPLETED,
+                           FIRST_EXCEPTION,
+                           ALL_COMPLETED,
+                           CancelledError,
+                           TimeoutError,
+                           Future,
+                           wait,
+                           as_completed) 
 from futures.thread import ThreadPoolExecutor
 from futures.process import ProcessPoolExecutor
 
