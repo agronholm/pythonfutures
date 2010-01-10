@@ -171,10 +171,7 @@ def _add_call_item_to_queue(pending_work_items,
         else:
             work_item = pending_work_items[work_id]
 
-            if work_item.future.cancelled():
-                with work_item.future._condition:
-                    work_item.future._condition.notify_all()
-                work_item.completion_tracker.add_cancelled()
+            if work_item.future._check_cancel_and_notify():
                 del pending_work_items[work_id]
                 continue
             else:
@@ -323,10 +320,17 @@ class ProcessPoolExecutor(Executor):
             self._start_queue_management_thread()
             self._adjust_process_count()
             return f
+    submit.__doc__ = Executor.submit.__doc__
 
-    def shutdown(self):
+    def shutdown(self, wait=False):
         with self._shutdown_lock:
             self._shutdown_thread = True
+        if wait:
+            if self._queue_management_thread:
+                self._queue_management_thread.join()
+
+    shutdown.__doc__ = Executor.shutdown.__doc__
 
 atexit.register(_python_exit)
+
 

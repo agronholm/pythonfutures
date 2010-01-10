@@ -63,7 +63,7 @@ class _WorkItem(object):
         with self.future._condition:
             if self.future._state == PENDING:
                 self.future._state = RUNNING
-            elif self.future._cancel():
+            elif self.future._check_cancel_and_notify():
                 return
             else:
                 LOGGER.critical('Future %s in unexpected state: %s',
@@ -124,6 +124,7 @@ class ThreadPoolExecutor(Executor):
             self._work_queue.put(w)
             self._adjust_thread_count()
             return f
+    submit.__doc__ = Executor.submit.__doc__
 
     def _adjust_thread_count(self):
         # TODO(bquinlan): Should avoid creating new threads if there are more
@@ -136,8 +137,11 @@ class ThreadPoolExecutor(Executor):
             self._threads.add(t)
             _thread_references.add(weakref.ref(t))
 
-    def shutdown(self):
+    def shutdown(self, wait=False):
         with self._shutdown_lock:
             self._shutdown = True
+        if wait:
+            for t in self._threads:
+                t.join()
     shutdown.__doc__ = Executor.shutdown.__doc__
 

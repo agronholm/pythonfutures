@@ -9,6 +9,7 @@ import futures
 import futures._base
 from futures._base import (
     PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future, wait)
+import futures.process
 
 def create_future(state=PENDING, exception=None, result=None):
     f = Future()
@@ -23,6 +24,9 @@ CANCELLED_FUTURE = create_future(state=CANCELLED)
 CANCELLED_AND_NOTIFIED_FUTURE = create_future(state=CANCELLED_AND_NOTIFIED)
 EXCEPTION_FUTURE = create_future(state=FINISHED, exception=IOError())
 SUCCESSFUL_FUTURE = create_future(state=FINISHED, result=42)
+
+def mul(x, y):
+    return x * y
 
 class Call(object):
     CALL_LOCKS = {}
@@ -78,14 +82,11 @@ class ExceptionCall(Call):
 
 class ExecutorShutdownTest(unittest.TestCase):
     def test_run_after_shutdown(self):
-        call1 = Call()
-        try:
-            self.executor.shutdown()
-            self.assertRaises(RuntimeError,
-                              self.executor.run_to_futures,
-                              [call1])
-        finally:
-            call1.close()
+        self.executor.shutdown()
+        self.assertRaises(RuntimeError,
+                          self.executor.submit,
+                          pow, 2, 5)
+
 
     def _start_some_futures(self):
         call1 = Call(manual_finish=True)
@@ -93,9 +94,10 @@ class ExecutorShutdownTest(unittest.TestCase):
         call3 = Call(manual_finish=True)
 
         try:
-            self.executor.run_to_futures([call1, call2, call3],
-                                         return_when=futures.RETURN_IMMEDIATELY)
-    
+            self.executor.submit(call1)
+            self.executor.submit(call2)
+            self.executor.submit(call3)
+
             call1.wait_on_called()
             call2.wait_on_called()
             call3.wait_on_called()
@@ -113,7 +115,7 @@ class ThreadPoolShutdownTest(ExecutorShutdownTest):
         self.executor = futures.ThreadPoolExecutor(max_threads=5)
 
     def tearDown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
 
     def test_threads_terminate(self):
         self._start_some_futures()
@@ -145,7 +147,7 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
         self.executor = futures.ProcessPoolExecutor(max_processes=5)
 
     def tearDown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
 
     def test_processes_terminate(self):
         self._start_some_futures()
@@ -177,314 +179,327 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
         for p in processes:
             p.join()
 
-class WaitsTest(unittest.TestCase):
-    def test_concurrent_waits(self):
-        def wait_for_ALL_COMPLETED():
-            wait([f1, f2, f3, f4], return_when=futures.ALL_COMPLETED)
-            self.assertTrue(f1.done())
-            self.assertTrue(f2.done())
-            self.assertTrue(f3.done())
-            self.assertTrue(f4.done())
-            all_completed.release()
+class WaitTests(unittest.TestCase):
+    def test_first_completed(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
+            call1.set_can()
 
-        def wait_for_FIRST_COMPLETED():
-            wait([f1, f2, f3, f4], return_when=futures.FIRST_COMPLETED)
-            self.assertTrue(f1.done())
-            self.assertFalse(f2.done())
-            self.assertFalse(f3.done())
-            self.assertFalse(f4.done())
-            first_completed.release()
+        call1 = Call(manual_finish=True)
+        call2 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
 
-        def wait_for_FIRST_EXCEPTION():
-            wait([f1, f2, f3, f4], return_when=futures.FIRST_EXCEPTION)
-            self.assertTrue(f1.done())
-            self.assertTrue(f2.done())
-            self.assertFalse(f3.done())
-            self.assertFalse(f4.done())
-            first_exception.release()
+            t = threading.Thread(target=wait_test)
+            t.start()
+            finished, pending = futures.wait(
+                    [CANCELLED_FUTURE, future1, future2],
+                     return_when=futures.FIRST_COMPLETED)
 
-        all_completed = threading.Semaphore(0)
-        first_completed = threading.Semaphore(0)
-        first_exception = threading.Semaphore(0)
+            self.assertEquals(set([future1]), finished)
+            self.assertEquals(set([CANCELLED_FUTURE, future2]), pending)
+        finally:
+            call2.set_can()
+            call1.close()
+            call2.close()
+
+    def test_first_completed_one_already_completed(self):
+        call1 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+
+            finished, pending = futures.wait(
+                     [SUCCESSFUL_FUTURE, future1],
+                     return_when=futures.FIRST_COMPLETED)
+
+            self.assertEquals(set([SUCCESSFUL_FUTURE]), finished)
+            self.assertEquals(set([future1]), pending)
+        finally:
+            call1.set_can()
+            call1.close()
+
+    def test_first_exception(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
+            call1.set_can()
+            call2.set_can()
 
         call1 = Call(manual_finish=True)
         call2 = ExceptionCall(manual_finish=True)
         call3 = Call(manual_finish=True)
-        call4 = Call()
-
         try:
-            f1 = self.executor.submit(call1)
-            f2 = self.executor.submit(call2)
-            f3 = self.executor.submit(call3)
-            f4 = self.executor.submit(call4)
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
+            future3 = self.executor.submit(call3)
 
-            threads = []
-            for wait_test in [wait_for_ALL_COMPLETED,
-                              wait_for_FIRST_COMPLETED,
-                              wait_for_FIRST_EXCEPTION]:
-                t = threading.Thread(target=wait_test)
-                t.start()
-                threads.append(t)
-    
-            time.sleep(1)   # give threads enough time to execute wait
-    
-            call1.set_can()
-            first_completed.acquire()
-            call2.set_can()        
-            first_exception.acquire()
-            call3.set_can()
-            all_completed.acquire()
-    
-            self.executor.shutdown()
-        finally:
-            call1.close()
-            call2.close()
-            call3.close()
-            call4.close()
-
-class ThreadPoolWaitTests(WaitsTest):
-    def setUp(self):
-        self.executor = futures.ThreadPoolExecutor(max_threads=1)
-
-    def tearDown(self):
-        self.executor.shutdown()
-
-class ProcessPoolWaitTests(WaitsTest):
-    def setUp(self):
-        self.executor = futures.ProcessPoolExecutor(max_processes=1)
-
-    def tearDown(self):
-        self.executor.shutdown()
-
-class CancelTests(unittest.TestCase):
-    def test_cancel_states(self):
-        call1 = Call(manual_finish=True)
-        call2 = Call()
-        call3 = Call()
-        call4 = Call()
-
-        try:
-            fs = self.executor.run_to_futures(
-                    [call1, call2, call3, call4],
-                    return_when=futures.RETURN_IMMEDIATELY)
-            f1, f2, f3, f4 = fs
-    
-            call1.wait_on_called()
-            self.assertEqual(f1.cancel(), False)
-            self.assertEqual(f2.cancel(), True)
-            self.assertEqual(f4.cancel(), True)
-            self.assertEqual(f1.cancelled(), False)
-            self.assertEqual(f2.cancelled(), True)
-            self.assertEqual(f3.cancelled(), False)
-            self.assertEqual(f4.cancelled(), True)
-            self.assertEqual(f1.done(), False)
-            self.assertEqual(f2.done(), True)
-            self.assertEqual(f3.done(), False)
-            self.assertEqual(f4.done(), True)
-    
-            call1.set_can()
-            fs.wait(return_when=futures.ALL_COMPLETED)
-            self.assertEqual(f1.result(), 42)
-            self.assertRaises(futures.CancelledError, f2.result)
-            self.assertRaises(futures.CancelledError, f2.exception)
-            self.assertEqual(f3.result(), 42)
-            self.assertRaises(futures.CancelledError, f4.result)
-            self.assertRaises(futures.CancelledError, f4.exception)
-    
-            self.assertEqual(call2.called(), False)
-            self.assertEqual(call4.called(), False)
-        finally:
-            call1.close()
-            call2.close()
-            call3.close()
-            call4.close()
-
-    def test_wait_for_individual_cancel_while_waiting(self):
-        def end_call():
-            # Wait until the main thread is waiting on the results of the
-            # future.
-            time.sleep(1)
-            f2.cancel()
-            call1.set_can()
-
-        call1 = Call(manual_finish=True)
-        call2 = Call()
-
-        try:
-            fs = self.executor.run_to_futures(
-                    [call1, call2],
-                    return_when=futures.RETURN_IMMEDIATELY)
-            f1, f2 = fs
-    
-            call1.wait_on_called()
-            t = threading.Thread(target=end_call)
+            t = threading.Thread(target=wait_test)
             t.start()
-            self.assertRaises(futures.CancelledError, f2.result)
-            self.assertRaises(futures.CancelledError, f2.exception)
-            t.join()
+            finished, pending = futures.wait(
+                    [future1, future2, future3],
+                    return_when=futures.FIRST_EXCEPTION)
+
+            self.assertEquals(set([future1, future2]), finished)
+            self.assertEquals(set([future3]), pending)
+
+
+        finally:
+            call3.set_can()
+            call1.close()
+            call2.close()
+            call3.close()
+
+    def test_first_exception_some_already_complete(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
+            call1.set_can()
+
+        call1 = ExceptionCall(manual_finish=True)
+        call2 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
+
+            t = threading.Thread(target=wait_test)
+            t.start()
+            finished, pending = futures.wait(
+                    [SUCCESSFUL_FUTURE,
+                     CANCELLED_FUTURE,
+                     CANCELLED_AND_NOTIFIED_FUTURE,
+                     future1, future2],
+                    return_when=futures.FIRST_EXCEPTION)
+
+            self.assertEquals(set([SUCCESSFUL_FUTURE,
+                                   CANCELLED_AND_NOTIFIED_FUTURE,
+                                   future1]), finished)
+            self.assertEquals(set([CANCELLED_FUTURE, future2]), pending)
+
+
+        finally:
+            call2.set_can()
+            call1.close()
+            call2.close()
+
+    def test_first_exception_one_already_failed(self):
+        call1 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+
+            finished, pending = futures.wait(
+                     [EXCEPTION_FUTURE, future1],
+                     return_when=futures.FIRST_EXCEPTION)
+
+            self.assertEquals(set([EXCEPTION_FUTURE]), finished)
+            self.assertEquals(set([future1]), pending)
+        finally:
+            call1.set_can()
+            call1.close()
+
+    def test_all_completed(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
+            call1.set_can()
+            call2.set_can()
+
+        call1 = Call(manual_finish=True)
+        call2 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
+
+            t = threading.Thread(target=wait_test)
+            t.start()
+            finished, pending = futures.wait(
+                    [future1, future2],
+                    return_when=futures.ALL_COMPLETED)
+
+            self.assertEquals(set([future1, future2]), finished)
+            self.assertEquals(set(), pending)
+
+
         finally:
             call1.close()
             call2.close()
 
-    def test_wait_with_already_cancelled_futures(self):
-        call1 = Call(manual_finish=True)
-        call2 = Call()
-        call3 = Call()
-        call4 = Call()
+    def test_all_completed_some_already_completed(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
 
-        try:
-            fs = self.executor.run_to_futures(
-                    [call1, call2, call3, call4],
-                    return_when=futures.RETURN_IMMEDIATELY)
-            f1, f2, f3, f4 = fs
-    
-            call1.wait_on_called()
-            self.assertTrue(f2.cancel())
-            self.assertTrue(f3.cancel())
+            future4.cancel()
             call1.set_can()
-    
-            fs.wait(return_when=futures.ALL_COMPLETED)
+            call2.set_can()
+            call3.set_can()
+
+        self.assertLessEqual(
+                futures.process.EXTRA_QUEUED_CALLS,
+                1,
+               'this test assumes that future4 will be cancelled before it is '
+               'queued to run - which might not be the case if '
+               'ProcessPoolExecutor is too aggresive in scheduling futures') 
+        call1 = Call(manual_finish=True)
+        call2 = Call(manual_finish=True)
+        call3 = Call(manual_finish=True)
+        call4 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
+            future3 = self.executor.submit(call3)
+            future4 = self.executor.submit(call4)
+
+            t = threading.Thread(target=wait_test)
+            t.start()
+            finished, pending = futures.wait(
+                    [SUCCESSFUL_FUTURE,
+                     CANCELLED_AND_NOTIFIED_FUTURE,
+                     future1, future2, future3, future4],
+                    return_when=futures.ALL_COMPLETED)
+
+            self.assertEquals(set([SUCCESSFUL_FUTURE,
+                                   CANCELLED_AND_NOTIFIED_FUTURE,
+                                   future1, future2, future3, future4]),
+                              finished)
+            self.assertEquals(set(), pending)
         finally:
             call1.close()
             call2.close()
             call3.close()
             call4.close()
 
-    def test_cancel_all(self):
-        call1 = Call(manual_finish=True)
-        call2 = Call()
-        call3 = Call()
-        call4 = Call()
-
-        try:
-            fs = self.executor.run_to_futures(
-                    [call1, call2, call3, call4],
-                    return_when=futures.RETURN_IMMEDIATELY)
-            f1, f2, f3, f4 = fs
-    
-            call1.wait_on_called()
-            self.assertRaises(futures.TimeoutError, fs.cancel, timeout=0)
+    def test_timeout(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
             call1.set_can()
-            fs.cancel()
-    
-            self.assertFalse(f1.cancelled())
-            self.assertTrue(f2.cancelled())
-            self.assertTrue(f3.cancelled())
-            self.assertTrue(f4.cancelled())
+
+        call1 = Call(manual_finish=True)
+        call2 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
+
+            t = threading.Thread(target=wait_test)
+            t.start()
+            finished, pending = futures.wait(
+                    [CANCELLED_AND_NOTIFIED_FUTURE,
+                     EXCEPTION_FUTURE,
+                     SUCCESSFUL_FUTURE,
+                     future1, future2],
+                    timeout=1,
+                    return_when=futures.ALL_COMPLETED)
+
+            self.assertEquals(set([CANCELLED_AND_NOTIFIED_FUTURE,
+                                   EXCEPTION_FUTURE,
+                                   SUCCESSFUL_FUTURE,
+                                   future1]), finished)
+            self.assertEquals(set([future2]), pending)
+
+
         finally:
+            call2.set_can()
             call1.close()
             call2.close()
-            call3.close()
-            call4.close()
 
-class ThreadPoolCancelTests(CancelTests):
+
+class ThreadPoolWaitTests(WaitTests):
     def setUp(self):
         self.executor = futures.ThreadPoolExecutor(max_threads=1)
 
     def tearDown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
 
-class ProcessPoolCancelTests(WaitsTest):
+class ProcessPoolWaitTests(WaitTests):
     def setUp(self):
         self.executor = futures.ProcessPoolExecutor(max_processes=1)
 
     def tearDown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
+
+class AsCompletedTests(unittest.TestCase):
+    # TODO(brian@sweetapp.com): Should have a test with a non-zero timeout.
+    def test_no_timeout(self):
+        def wait_test():
+            while not future1._waiters:
+                pass
+            call1.set_can()
+            call2.set_can()
+
+        call1 = Call(manual_finish=True)
+        call2 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            future2 = self.executor.submit(call2)
+
+            t = threading.Thread(target=wait_test)
+            t.start()
+            completed = set(futures.as_completed(
+                    [CANCELLED_AND_NOTIFIED_FUTURE,
+                     EXCEPTION_FUTURE,
+                     SUCCESSFUL_FUTURE,
+                     future1, future2]))
+            self.assertEquals(set(
+                    [CANCELLED_AND_NOTIFIED_FUTURE,
+                     EXCEPTION_FUTURE,
+                     SUCCESSFUL_FUTURE,
+                     future1, future2]),
+                    completed)
+        finally:
+            call2.set_can()
+            call1.close()
+            call2.close()
+
+    def test_zero_timeout(self):
+        call1 = Call(manual_finish=True)
+        try:
+            future1 = self.executor.submit(call1)
+            completed_futures = set()
+            try:
+                for future in futures.as_completed(
+                        [CANCELLED_AND_NOTIFIED_FUTURE,
+                         EXCEPTION_FUTURE,
+                         SUCCESSFUL_FUTURE,
+                         future1],
+                        timeout=0):
+                    completed_futures.add(future)
+            except futures.TimeoutError:
+                pass 
+
+            self.assertEquals(set([CANCELLED_AND_NOTIFIED_FUTURE,
+                                   EXCEPTION_FUTURE,
+                                   SUCCESSFUL_FUTURE]),
+                              completed_futures)
+        finally:
+            call1.set_can()
+
+class ThreadPoolAsCompletedTests(AsCompletedTests):
+    def setUp(self):
+        self.executor = futures.ThreadPoolExecutor(max_threads=1)
+
+    def tearDown(self):
+        self.executor.shutdown(wait=True)
+
+class ProcessPoolAsCompletedTests(AsCompletedTests):
+    def setUp(self):
+        self.executor = futures.ProcessPoolExecutor(max_processes=1)
+
+    def tearDown(self):
+        self.executor.shutdown(wait=True)
 
 class ExecutorTest(unittest.TestCase):
     # Executor.shutdown() and context manager usage is tested by
     # ExecutorShutdownTest.
-    def test_run_to_futures(self):
-        call1 = Call(result=1)
-        call2 = Call(result=2)
-        call3 = Call(manual_finish=True)
-        call4 = Call()
-        call5 = Call()
+    def test_submit(self):
+        future = self.executor.submit(pow, 2, 8)
+        self.assertEquals(256, future.result())
 
-        try:
-            f1, f2, f3, f4, f5 = self.executor.run_to_futures(
-                    [call1, call2, call3, call4, call5],
-                    return_when=futures.RETURN_IMMEDIATELY)
+    def test_submit_keyword(self):
+        future = self.executor.submit(mul, 2, y=8)
+        self.assertEquals(16, future.result())
     
-            call3.wait_on_called()
-
-            # ProcessPoolExecutor uses a thread to propogate results into the
-            # future. Calling result() ensures that the thread has done its work
-            # before doing the next set of checks.
-            f1.result()  
-            f2.result()
-
-            self.assertTrue(f1.done())
-            self.assertFalse(f1.running())
-            self.assertEqual(f1.index, 0)
-    
-            self.assertTrue(f2.done())
-            self.assertFalse(f2.running())
-            self.assertEqual(f2.index, 1)
-    
-            self.assertFalse(f3.done())
-            self.assertTrue(f3.running())
-            self.assertEqual(f3.index, 2)
-
-            # ProcessPoolExecutor may mark some futures as running before they
-            # actually are so don't check these ones.
-            self.assertFalse(f4.done())
-            self.assertEqual(f4.index, 3)
-    
-            self.assertFalse(f5.done())
-            self.assertEqual(f5.index, 4)
-        finally:
-            call3.set_can()  # Let the call finish executing.
-            call1.close()
-            call2.close()
-            call3.close()
-            call4.close()
-            call5.close()
-
-    def test_run_to_results(self):
-        call1 = Call(result=1)
-        call2 = Call(result=2)
-        call3 = Call(result=3)
-        try:
-            self.assertEqual(
-                    list(self.executor.run_to_results([call1, call2, call3])),
-                    [1, 2, 3])
-        finally:
-            call1.close()
-            call2.close()
-            call3.close()
-
-    def test_run_to_results_exception(self):
-        call1 = Call(result=1)
-        call2 = Call(result=2)
-        call3 = ExceptionCall()
-        try:
-            i = self.executor.run_to_results([call1, call2, call3])
-    
-            self.assertEqual(i.__next__(), 1)
-            self.assertEqual(i.__next__(), 2)
-            self.assertRaises(ZeroDivisionError, i.__next__)
-        finally:
-            call1.close()
-            call2.close()
-            call3.close()
-
-    def test_run_to_results_timeout(self):
-        call1 = Call(result=1)
-        call2 = Call(result=2)
-        call3 = Call(manual_finish=True)
-
-        try:
-            i = self.executor.run_to_results([call1, call2, call3], timeout=1)
-            self.assertEqual(i.__next__(), 1)
-            self.assertEqual(i.__next__(), 2)
-            self.assertRaises(futures.TimeoutError, i.__next__)
-            call3.set_can()
-        finally:
-            call1.close()
-            call2.close()
-            call3.close()
-
     def test_map(self):
         self.assertEqual(
                 list(self.executor.map(pow, range(10), range(10))),
@@ -496,36 +511,48 @@ class ExecutorTest(unittest.TestCase):
         self.assertEqual(i.__next__(), (0, 1))
         self.assertRaises(ZeroDivisionError, i.__next__)
 
+    def test_map_timeout(self):
+        results = []
+        try:
+            for i in self.executor.map(time.sleep, [0, 0.1, 1], timeout=1):
+                results.append(i)
+        except futures.TimeoutError:
+            pass
+        else:
+            self.fail('expected TimeoutError')
+        self.assertEquals([None, None], results)
+
 class ThreadPoolExecutorTest(ExecutorTest):
     def setUp(self):
         self.executor = futures.ThreadPoolExecutor(max_threads=1)
 
     def tearDown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
 
 class ProcessPoolExecutorTest(ExecutorTest):
     def setUp(self):
         self.executor = futures.ProcessPoolExecutor(max_processes=1)
 
     def tearDown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
 
 class FutureTests(unittest.TestCase):
-    # Future.index() is tested by ExecutorTest
-    # Future.cancel() is further tested by CancelTests.
-
     def test_repr(self):
-        self.assertEqual(repr(PENDING_FUTURE), '<Future state=pending>')
-        self.assertEqual(repr(RUNNING_FUTURE), '<Future state=running>')
-        self.assertEqual(repr(CANCELLED_FUTURE), '<Future state=cancelled>')
-        self.assertEqual(repr(CANCELLED_AND_NOTIFIED_FUTURE),
-                         '<Future state=cancelled>')
-        self.assertEqual(repr(EXCEPTION_FUTURE),
-                         '<Future state=finished raised IOError>')
-        self.assertEqual(repr(SUCCESSFUL_FUTURE),
-                         '<Future state=finished returned int>')
+        self.assertRegexpMatches(repr(PENDING_FUTURE),
+                                 '<Future at 0x[0-9a-f]+ state=pending>')
+        self.assertRegexpMatches(repr(RUNNING_FUTURE),
+                                 '<Future at 0x[0-9a-f]+ state=running>')
+        self.assertRegexpMatches(repr(CANCELLED_FUTURE),
+                                 '<Future at 0x[0-9a-f]+ state=cancelled>')
+        self.assertRegexpMatches(repr(CANCELLED_AND_NOTIFIED_FUTURE),
+                                 '<Future at 0x[0-9a-f]+ state=cancelled>')
+        self.assertRegexpMatches(
+                repr(EXCEPTION_FUTURE),
+                '<Future at 0x[0-9a-f]+ state=finished raised IOError>')
+        self.assertRegexpMatches(
+                repr(SUCCESSFUL_FUTURE),
+                '<Future at 0x[0-9a-f]+ state=finished returned int>')
 
-        create_future
 
     def test_cancel(self):
         f1 = create_future(state=PENDING)
@@ -590,13 +617,11 @@ class FutureTests(unittest.TestCase):
         self.assertEqual(SUCCESSFUL_FUTURE.result(timeout=0), 42)
 
     def test_result_with_success(self):
+        # TODO(brian@sweetapp.com): This test is timing dependant.
         def notification():
             # Wait until the main thread is waiting for the result.
             time.sleep(1)
-            with f1._condition:
-                f1._state = FINISHED
-                f1._result = 42
-                f1._condition.notify_all()
+            f1._set_result(42)
 
         f1 = create_future(state=PENDING)
         t = threading.Thread(target=notification)
@@ -605,12 +630,11 @@ class FutureTests(unittest.TestCase):
         self.assertEquals(f1.result(timeout=5), 42)
 
     def test_result_with_cancel(self):
+        # TODO(brian@sweetapp.com): This test is timing dependant.
         def notification():
             # Wait until the main thread is waiting for the result.
             time.sleep(1)
-            with f1._condition:
-                f1._state = CANCELLED
-                f1._condition.notify_all()
+            f1.cancel()
 
         f1 = create_future(state=PENDING)
         t = threading.Thread(target=notification)
@@ -647,12 +671,12 @@ class FutureTests(unittest.TestCase):
         self.assertTrue(isinstance(f1.exception(timeout=5), IOError))
 
 def test_main():
-    test.support.run_unittest(ProcessPoolCancelTests,
-                              ThreadPoolCancelTests,
-                              ProcessPoolExecutorTest,
+    test.support.run_unittest(ProcessPoolExecutorTest,
                               ThreadPoolExecutorTest,
                               ProcessPoolWaitTests,
                               ThreadPoolWaitTests,
+                              ProcessPoolAsCompletedTests,
+                              ThreadPoolAsCompletedTests,
                               FutureTests,
                               ProcessPoolShutdownTest,
                               ThreadPoolShutdownTest)

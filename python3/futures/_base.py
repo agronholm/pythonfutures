@@ -153,8 +153,8 @@ def as_completed(fs, timeout=None):
             is no limit on the wait time.
 
     Returns:
-        An iterator that yields the given Futures as they complete (finish or
-        are cancelled).
+        An iterator that yields the given Futures as they complete (finished or
+        cancelled).
 
     Raises:
         TimeoutError: If the entire result iterator could not be generated
@@ -166,13 +166,13 @@ def as_completed(fs, timeout=None):
     with _AcquireFutures(fs):
         finished = set(
                 f for f in fs
-                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED])
+                if f._state in [CANCELLED_AND_NOTIFIED, FINISHED])
         pending = set(fs) - finished
         waiter = _create_and_install_waiters(fs, FIRST_COMPLETED)
 
     try:
         for future in finished:
-            yield finished
+            yield future
 
         while pending:
             if timeout is None:
@@ -186,7 +186,7 @@ def as_completed(fs, timeout=None):
 
             waiter.event.wait(timeout)
 
-            for future in waiter.finished_futures:
+            for future in waiter.finished_futures[:]:
                 yield future
                 waiter.finished_futures.remove(future)
                 pending.remove(future)
@@ -196,9 +196,10 @@ def as_completed(fs, timeout=None):
             f._waiters.remove(waiter)
 
 def wait(fs, timeout=None, return_when=ALL_COMPLETED):
-    """Wait for the futures in the list to complete.
+    """Wait for the futures in the given sequence to complete.
 
     Args:
+        fs: The sequence of futures (created by Executor.submit()) to wait upon.
         timeout: The maximum number of seconds to wait. If None, then there
             is no limit on the wait time.
         return_when: Indicates when the method should return. The options
@@ -211,14 +212,15 @@ def wait(fs, timeout=None, return_when=ALL_COMPLETED):
                               then it is equivalent to ALL_COMPLETED.
             ALL_COMPLETED -   Return when all futures finish or are cancelled.
 
-    Raises:
-        TimeoutError: If the wait condition wasn't satisfied before the
-            given timeout.
+    Returns:
+        A 2-tuple of sets. The first set contains the futures that completed
+        (is finished or cancelled) before the wait completed. The second set
+        contains uncompleted futures.
     """
     with _AcquireFutures(fs):
         finished = set(
                 f for f in fs
-                if f._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED])
+                if f._state in [CANCELLED_AND_NOTIFIED, FINISHED])
         not_finished = set(fs) - finished
 
         if (return_when == FIRST_COMPLETED) and finished:
@@ -255,14 +257,18 @@ class Future(object):
         with self._condition:
             if self._state == FINISHED:
                 if self._exception:
-                    return '<Future state=%s raised %s>' % (
+                    return '<Future at %s state=%s raised %s>' % (
+                        hex(id(self)),
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._exception.__class__.__name__)
                 else:
-                    return '<Future state=%s returned %s>' % (
+                    return '<Future at %s state=%s returned %s>' % (
+                        hex(id(self)),
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._result.__class__.__name__)
-            return '<Future state=%s>' % _STATE_TO_DESCRIPTION_MAP[self._state]
+            return '<Future at %s state=%s>' % (
+                    hex(id(self)),
+                   _STATE_TO_DESCRIPTION_MAP[self._state])
 
     def cancel(self):
         """Cancel the future if possible.
@@ -294,7 +300,12 @@ class Future(object):
         with self._condition:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
 
-    def _cancel(self):
+    def _check_cancel_and_notify(self):
+        '''Check if the Future was cancelled and notify its waiter if it was.
+
+        Returns:
+            True if the Future was cancelled, False otherwise.
+        '''
         with self._condition:
             if self._state == CANCELLED:
                 self._state = CANCELLED_AND_NOTIFIED
@@ -394,6 +405,17 @@ class Future(object):
 class Executor(object):
     """This is an abstract base class for concrete asynchronous executors."""
 
+    def submit(self, fn, *args, **kwargs):
+        """Submits a function to be executed with the given arguments.
+
+        Schedules the callable to be executed as fn(*args, **kwargs) and returns
+        a Future instance representing the execution of the function.
+
+        Returns:
+            A Future representing the given function call.
+        """
+        raise NotImplementedError()
+
     def map(self, fn, *iterables, timeout=None):
         """Returns a iterator equivalent to map(fn, iter).
 
@@ -427,8 +449,17 @@ class Executor(object):
             for future in fs:
                 future.cancel()
 
-    def shutdown(self):
-        """Clean-up. No other methods can be called afterwards."""
+    def shutdown(self, wait=False):
+        """Clean-up the resources associated with the Executor. 
+
+        It is safe to call this method several times. Otherwise, no other
+        methods can be called after this one.
+
+        Args:
+            wait: If True then shutdown will not return until all running
+                futures have finished executing and the resources used by the
+                executor have been reclaimed.
+        """
         pass
 
     def __enter__(self):
