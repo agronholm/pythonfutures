@@ -111,6 +111,8 @@ ProcessPoolExecutor Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ::
 
+   import math
+
    PRIMES = [
        112272535095293,
        112582705942171,
