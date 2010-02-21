@@ -321,7 +321,7 @@ class ProcessPoolExecutor(Executor):
             return f
     submit.__doc__ = Executor.submit.__doc__
 
-    def shutdown(self, wait=False):
+    def shutdown(self, wait=True):
         with self._shutdown_lock:
             self._shutdown_thread = True
         if wait:
