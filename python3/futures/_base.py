@@ -2,6 +2,7 @@
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
+import collections
 import functools
 import logging
 import threading
@@ -195,6 +196,8 @@ def as_completed(fs, timeout=None):
         for f in fs:
             f._waiters.remove(waiter)
 
+FinishedAndNotFinishedFutures = collections.namedtuple(
+        'FinishedAndNotFinishedFutures', 'finished not_finished')
 def wait(fs, timeout=None, return_when=ALL_COMPLETED):
     """Wait for the futures in the given sequence to complete.
 
@@ -208,14 +211,15 @@ def wait(fs, timeout=None, return_when=ALL_COMPLETED):
             FIRST_COMPLETED - Return when any future finishes or is
                               cancelled.
             FIRST_EXCEPTION - Return when any future finishes by raising an
-                              exception. If no future raises and exception
+                              exception. If no future raises an exception
                               then it is equivalent to ALL_COMPLETED.
             ALL_COMPLETED -   Return when all futures finish or are cancelled.
 
     Returns:
-        A 2-tuple of sets. The first set contains the futures that completed
-        (is finished or cancelled) before the wait completed. The second set
-        contains uncompleted futures.
+        A named 2-tuple of sets. The first set, named 'finished', contains the
+        futures that completed (is finished or cancelled) before the wait
+        completed. The second set, named 'not_finished', contains uncompleted
+        futures.
     """
     with _AcquireFutures(fs):
         finished = set(
@@ -240,7 +244,7 @@ def wait(fs, timeout=None, return_when=ALL_COMPLETED):
         f._waiters.remove(waiter)
 
     finished.update(waiter.finished_futures)
-    return finished, set(fs) - finished
+    return FinishedAndNotFinishedFutures(finished, set(fs) - finished)
 
 class Future(object):
     """Represents the result of an asynchronous computation."""
@@ -449,7 +453,7 @@ class Executor(object):
             for future in fs:
                 future.cancel()
 
-    def shutdown(self, wait=False):
+    def shutdown(self, wait=True):
         """Clean-up the resources associated with the Executor. 
 
         It is safe to call this method several times. Otherwise, no other
@@ -466,6 +470,6 @@ class Executor(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.shutdown()
+        self.shutdown(wait=True)
         return False
 

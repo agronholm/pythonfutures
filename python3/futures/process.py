@@ -23,9 +23,8 @@ The follow diagram and text describe the data-flow through the system:
 |          |     | ...        |     |        |     | 3, except |    |         |
 +----------+     +------------+     +--------+     +-----------+    +---------+
 
-Executor.run_to_futures() called:
-- creates a uniquely numbered _WorkItem for each call and adds them to the
-  "Work Items" dict
+Executor.submit() called:
+- creates a uniquely numbered _WorkItem and adds it to the "Work Items" dict
 - adds the id of the _WorkItem to the "Work Ids" queue
 
 Local worker thread:
