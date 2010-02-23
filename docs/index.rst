@@ -40,7 +40,7 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
    time. If a call raises an exception then that exception will be raised when
    its value is retrieved from the iterator.
 
-.. method:: Executor.shutdown(wait=False)
+.. method:: Executor.shutdown(wait=True)
 
    Signal the executor that it should free any resources that it is using when
    the currently pending futures are done executing. Calls to
@@ -50,6 +50,20 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
    If *wait* is `True` then the executor will not return until all the pending
    futures are done executing and the resources associated with the executor
    have been freed.
+
+    You can avoid having to call this method explicitly if you use the `with`
+    statement, which will shutdown the `Executor` (waiting as if
+    `Executor.shutdown` were called with *wait* set to `True`):
+
+::
+
+    import shutil
+    with ThreadPoolExecutor(max_threads=4) as e:
+        e.submit(shutil.copy, 'src1.txt', 'dest1.txt')
+        e.submit(shutil.copy, 'src2.txt', 'dest2.txt')
+        e.submit(shutil.copy, 'src3.txt', 'dest3.txt')
+        e.submit(shutil.copy, 'src3.txt', 'dest4.txt')
+
 
 ThreadPoolExecutor Objects
 --------------------------
@@ -205,17 +219,17 @@ Module Functions
       +-----------------------------+----------------------------------------+
       | Constant                    | Description                            |
       +=============================+========================================+
-      | :const:`FIRST_COMPLETED`    | The method will return when any call   |
-      |                             | finishes.                              |
+      | :const:`FIRST_COMPLETED`    | The function will return when any      |
+      |                             | future finishes or is cancelled.       |
       +-----------------------------+----------------------------------------+
-      | :const:`FIRST_EXCEPTION`    | The method will return when any call   |
-      |                             | raises an exception or when all calls  |
-      |                             | finish.                                |
+      | :const:`FIRST_EXCEPTION`    | The function will return when any      |
+      |                             | future finishes by raising an          |
+      |                             | exception. If no future raises an      |
+      |                             | exception then it is equivalent to     |
+      |                             | `ALL_COMPLETED`.                       |
       +-----------------------------+----------------------------------------+
-      | :const:`ALL_COMPLETED`      | The method will return when all calls  |
-      |                             | finish.                                |
-      +-----------------------------+----------------------------------------+
-      | :const:`RETURN_IMMEDIATELY` | The method will return immediately.    |
+      | :const:`ALL_COMPLETED`      | The function will return when all      |
+      |                             | futures finish or are cancelled.       |
       +-----------------------------+----------------------------------------+
 
 .. function:: as_completed(fs, timeout=None)
