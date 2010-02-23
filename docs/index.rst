@@ -26,7 +26,7 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
 
 ::
 
-    with ThreadPoolExecutor(max_threads=1) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(pow, 323, 1235)
         print(future.result())
 
@@ -58,7 +58,7 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
 ::
 
     import shutil
-    with ThreadPoolExecutor(max_threads=4) as e:
+    with ThreadPoolExecutor(max_workers=4) as e:
         e.submit(shutil.copy, 'src1.txt', 'dest1.txt')
         e.submit(shutil.copy, 'src2.txt', 'dest2.txt')
         e.submit(shutil.copy, 'src3.txt', 'dest3.txt')
@@ -71,9 +71,9 @@ ThreadPoolExecutor Objects
 The :class:`ThreadPoolExecutor` class is an :class:`Executor` subclass that uses
 a pool of threads to execute calls asynchronously.
 
-.. class:: ThreadPoolExecutor(max_threads)
+.. class:: ThreadPoolExecutor(max_workers)
 
-   Executes calls asynchronously using at pool of at most *max_threads* threads.
+   Executes calls asynchronously using at pool of at most *max_workers* threads.
 
 .. _threadpoolexecutor-example:
 
@@ -93,7 +93,7 @@ ThreadPoolExecutor Example
     def load_url(url, timeout):
         return urllib.request.urlopen(url, timeout=timeout).read()
     
-    with futures.ThreadPoolExecutor(max_threads=5) as executor:
+    with futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_url = dict((executor.submit(load_url, url, 60), url)
                              for url in URLS)
     
@@ -113,10 +113,10 @@ uses a pool of processes to execute calls asynchronously.
 allows it to side-step the :term:`Global Interpreter Lock` but also means that
 only picklable objects can be executed and returned.
 
-.. class:: ProcessPoolExecutor(max_processes=None)
+.. class:: ProcessPoolExecutor(max_workers=None)
 
-   Executes calls asynchronously using a pool of at most *max_processes*
-   processes. If *max_processes* is ``None`` or not given then as many worker
+   Executes calls asynchronously using a pool of at most *max_workers*
+   processes. If *max_workers* is ``None`` or not given then as many worker
    processes will be created as the machine has processors.
 
 .. _processpoolexecutor-example:
@@ -201,9 +201,10 @@ Module Functions
 .. function:: wait(fs, timeout=None, return_when=ALL_COMPLETED)
 
    Wait for the :class:`Future` instances in the given sequence to complete.
-   Returns a 2-tuple of sets. The first set contains the futures that completed
-   (finished or were cancelled) before the wait completed. The second set
-   contains uncompleted futures.
+   Returns a named 2-tuple of sets. The first set, named "finished", contains
+   the futures that completed (finished or were cancelled) before the wait
+   completed. The second set, named "not_finished", contains uncompleted
+   futures.
 
    This method should always be called using keyword arguments, which are:
 

@@ -86,7 +86,7 @@ def _remove_dead_thread_references():
 
     Should be called periodically to prevent memory leaks in scenarios such as:
     >>> while True:
-    >>> ...    t = ThreadPoolExecutor(max_threads=5)
+    >>> ...    t = ThreadPoolExecutor(max_workers=5)
     >>> ...    t.map(int, ['1', '2', '3', '4', '5'])
     """
     for thread_reference in set(_thread_references):
@@ -253,25 +253,25 @@ def _queue_manangement_worker(executor_reference,
                                      result_item.result)
 
 class ProcessPoolExecutor(Executor):
-    def __init__(self, max_processes=None):
+    def __init__(self, max_workers=None):
         """Initializes a new ProcessPoolExecutor instance.
 
         Args:
-            max_processes: The maximum number of processes that can be used to
+            max_workers: The maximum number of processes that can be used to
                 execute the given calls. If None or not given then as many
                 worker processes will be created as the machine has processors.
         """
         _remove_dead_thread_references()
 
-        if max_processes is None:
-            self._max_processes = multiprocessing.cpu_count()
+        if max_workers is None:
+            self._max_workers = multiprocessing.cpu_count()
         else:
-            self._max_processes = max_processes
+            self._max_workers = max_workers
 
         # Make the call queue slightly larger than the number of processes to
         # prevent the worker processes from idling. But don't make it too big
         # because futures in the call queue cannot be cancelled.
-        self._call_queue = multiprocessing.Queue(self._max_processes +
+        self._call_queue = multiprocessing.Queue(self._max_workers +
                                                  EXTRA_QUEUED_CALLS)
         self._result_queue = multiprocessing.Queue()
         self._work_ids = Queue.Queue()
@@ -301,7 +301,7 @@ class ProcessPoolExecutor(Executor):
             _thread_references.add(weakref.ref(self._queue_management_thread))
 
     def _adjust_process_count(self):
-        for _ in range(len(self._processes), self._max_processes):
+        for _ in range(len(self._processes), self._max_workers):
             p = multiprocessing.Process(
                     target=_process_worker,
                     args=(self._call_queue,

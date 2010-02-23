@@ -43,7 +43,7 @@ def _remove_dead_thread_references():
 
     Should be called periodically to prevent memory leaks in scenarios such as:
     >>> while True:
-    >>> ...    t = ThreadPoolExecutor(max_threads=5)
+    >>> ...    t = ThreadPoolExecutor(max_workers=5)
     >>> ...    t.map(int, ['1', '2', '3', '4', '5'])
     """
     for thread_reference in set(_thread_references):
@@ -98,16 +98,16 @@ def _worker(executor_reference, work_queue):
         LOGGER.critical('Exception in worker', exc_info=True)
 
 class ThreadPoolExecutor(Executor):
-    def __init__(self, max_threads):
+    def __init__(self, max_workers):
         """Initializes a new ThreadPoolExecutor instance.
 
         Args:
-            max_threads: The maximum number of threads that can be used to
+            max_workers: The maximum number of threads that can be used to
                 execute the given calls.
         """
         _remove_dead_thread_references()
 
-        self._max_threads = max_threads
+        self._max_workers = max_workers
         self._work_queue = queue.Queue()
         self._threads = set()
         self._shutdown = False
@@ -129,7 +129,7 @@ class ThreadPoolExecutor(Executor):
     def _adjust_thread_count(self):
         # TODO(bquinlan): Should avoid creating new threads if there are more
         # idle threads than items in the work queue.
-        if len(self._threads) < self._max_threads:
+        if len(self._threads) < self._max_workers:
             t = threading.Thread(target=_worker,
                                  args=(weakref.ref(self), self._work_queue))
             t.daemon = True

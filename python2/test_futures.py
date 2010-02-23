@@ -109,7 +109,7 @@ class ExecutorShutdownTest(unittest.TestCase):
 
 class ThreadPoolShutdownTest(ExecutorShutdownTest):
     def setUp(self):
-        self.executor = futures.ThreadPoolExecutor(max_threads=5)
+        self.executor = futures.ThreadPoolExecutor(max_workers=5)
 
     def tearDown(self):
         self.executor.shutdown()
@@ -122,7 +122,7 @@ class ThreadPoolShutdownTest(ExecutorShutdownTest):
             t.join()
 
     def test_context_manager_shutdown(self):
-        with futures.ThreadPoolExecutor(max_threads=5) as e:
+        with futures.ThreadPoolExecutor(max_workers=5) as e:
             executor = e
             self.assertEqual(list(e.map(abs, range(-5, 5))),
                              [5, 4, 3, 2, 1, 0, 1, 2, 3, 4])
@@ -131,7 +131,7 @@ class ThreadPoolShutdownTest(ExecutorShutdownTest):
             t.join()
 
     def test_del_shutdown(self):
-        executor = futures.ThreadPoolExecutor(max_threads=5)
+        executor = futures.ThreadPoolExecutor(max_workers=5)
         executor.map(abs, range(-5, 5))
         threads = executor._threads
         del executor
@@ -141,7 +141,7 @@ class ThreadPoolShutdownTest(ExecutorShutdownTest):
 
 class ProcessPoolShutdownTest(ExecutorShutdownTest):
     def setUp(self):
-        self.executor = futures.ProcessPoolExecutor(max_processes=5)
+        self.executor = futures.ProcessPoolExecutor(max_workers=5)
 
     def tearDown(self):
         self.executor.shutdown()
@@ -156,7 +156,7 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
             p.join()
 
     def test_context_manager_shutdown(self):
-        with futures.ProcessPoolExecutor(max_processes=5) as e:
+        with futures.ProcessPoolExecutor(max_workers=5) as e:
             executor = e
             self.assertEqual(list(e.map(abs, range(-5, 5))),
                              [5, 4, 3, 2, 1, 0, 1, 2, 3, 4])
@@ -166,7 +166,7 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
             p.join()
 
     def test_del_shutdown(self):
-        executor = futures.ProcessPoolExecutor(max_processes=5)
+        executor = futures.ProcessPoolExecutor(max_workers=5)
         list(executor.map(abs, range(-5, 5)))
         queue_management_thread = executor._queue_management_thread
         processes = executor._processes
@@ -242,14 +242,14 @@ class WaitsTest(unittest.TestCase):
 
 class ThreadPoolWaitTests(WaitsTest):
     def setUp(self):
-        self.executor = futures.ThreadPoolExecutor(max_threads=1)
+        self.executor = futures.ThreadPoolExecutor(max_workers=1)
 
     def tearDown(self):
         self.executor.shutdown()
 
 class ProcessPoolWaitTests(WaitsTest):
     def setUp(self):
-        self.executor = futures.ProcessPoolExecutor(max_processes=1)
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
 
     def tearDown(self):
         self.executor.shutdown()
@@ -377,14 +377,14 @@ class CancelTests(unittest.TestCase):
 
 class ThreadPoolCancelTests(CancelTests):
     def setUp(self):
-        self.executor = futures.ThreadPoolExecutor(max_threads=1)
+        self.executor = futures.ThreadPoolExecutor(max_workers=1)
 
     def tearDown(self):
         self.executor.shutdown()
 
 class ProcessPoolCancelTests(WaitsTest):
     def setUp(self):
-        self.executor = futures.ProcessPoolExecutor(max_processes=1)
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
 
     def tearDown(self):
         self.executor.shutdown()
@@ -496,14 +496,14 @@ class ExecutorTest(unittest.TestCase):
 
 class ThreadPoolExecutorTest(ExecutorTest):
     def setUp(self):
-        self.executor = futures.ThreadPoolExecutor(max_threads=1)
+        self.executor = futures.ThreadPoolExecutor(max_workers=1)
 
     def tearDown(self):
         self.executor.shutdown()
 
 class ProcessPoolExecutorTest(ExecutorTest):
     def setUp(self):
-        self.executor = futures.ProcessPoolExecutor(max_processes=1)
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
 
     def tearDown(self):
         self.executor.shutdown()

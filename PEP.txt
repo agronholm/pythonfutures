@@ -5,7 +5,7 @@ Last-Modified:     $Date$
 Author:            Brian Quinlan <brian@sweetapp.com>
 Status:            Draft
 Type:              Standards Track
-Content-Type:      text/x-rst
+Content-Type:      text/x-rstÄ
 Created:           16-Oct-2009
 Python-Version:    3.2
 Post-History:
@@ -80,7 +80,7 @@ Web Crawl Example
     def load_url(url, timeout):
         return urllib.request.urlopen(url, timeout=timeout).read()
     
-    with futures.ThreadPoolExecutor(max_threads=5) as executor:
+    with futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_url = dict((executor.submit(load_url, url, 60), url)
                              for url in URLS)
     
@@ -115,32 +115,41 @@ a `Future` instance representing the execution of the function.
 Equivalent to map(*func*, *\*iterables*) but executed asynchronously and
 possibly out-of-order. The returned iterator raises a `TimeoutError` if
 `__next__()` is called and the result isn't available after *timeout* seconds
-from the original call to `run_to_results()`. If *timeout* is not specified or
+from the original call to `map()`. If *timeout* is not specified or
 ``None`` then there is no limit to the wait time. If a call raises an exception
 then that exception will be raised when its value is retrieved from the
 iterator.
 
-`Executor.shutdown(wait=False)`
+`shutdown(wait=True)`
 
 Signal the executor that it should free any resources that it is using when
 the currently pending futures are done executing. Calls to
-`Executor.run_to_futures`, `Executor.run_to_results` and
-`Executor.map` made after shutdown will raise `RuntimeError`.
+`Executor.submit` and `Executor.map` and made after shutdown will raise
+`RuntimeError`.
 
 If wait is `True` then the executor will not return until all the pending
 futures are done executing and the resources associated with the executor
 have been freed.
 
+`__enter__()`
+`__exit__(exc_type, exc_val, exc_tb)`
+
+When using an executor as a context manager, `__exit__` will call
+`Executor.shutdown(wait=True)`.
+    
+
 ProcessPoolExecutor
 '''''''''''''''''''
 
 The `ProcessPoolExecutor` class is an `Executor` subclass that uses a pool of
-processes to execute calls asynchronously.
+processes to execute calls asynchronously. The callable objects and arguments
+passed to `ProcessPoolExecutor.submit` must be serializeable according to the
+same limitations as the multiprocessing module.
 
-`__init__(max_processes)`
+`__init__(max_workers)`
 
-Executes calls asynchronously using a pool of a most *max_processes*
-processes. If *max_processes* is ``None`` or not given then as many worker
+Executes calls asynchronously using a pool of a most *max_workers*
+processes. If *max_workers* is ``None`` or not given then as many worker
 processes will be created as the machine has processors.
 
 ThreadPoolExecutor
@@ -149,9 +158,9 @@ ThreadPoolExecutor
 The `ThreadPoolExecutor` class is an `Executor` subclass that uses a pool of
 threads to execute calls asynchronously.
 
-`__init__(max_threads)`
+`__init__(max_workers)`
 
-Executes calls asynchronously using a pool of at most *max_threads* threads.
+Executes calls asynchronously using a pool of at most *max_workers* threads.
 
 Future Objects
 ''''''''''''''
@@ -165,7 +174,7 @@ Attempt to cancel the call. If the call is currently being executed then
 it cannot be cancelled and the method will return `False`, otherwise the call
 will be cancelled and the method will return `True`.
 
-`Future.cancelled()`
+`cancelled()`
 
 Return `True` if the call was successfully cancelled.
 
@@ -198,19 +207,15 @@ be raised.
 
 If the call completed without raising then ``None`` is returned.
 
-`index`
-
-int indicating the index of the future in its `FutureList`.
-
 Module Functions
 ''''''''''''''''
 
 `wait(fs, timeout=None, return_when=ALL_COMPLETED)`
 
 Wait for the `Future` instances in the given sequence to complete. Returns a
-2-tuple of sets. The first set contains the futures that completed (finished
-or were cancelled) before the wait completed. The second set contains
-uncompleted futures.
+named 2-tuple of sets. The first set, named "finished", contains the futures
+that completed (finished  or were cancelled) before the wait completed. The
+second set, named "not_finished", contains uncompleted futures.
 
 This method should always be called using keyword arguments, which are:
 
@@ -226,11 +231,12 @@ following constants:
 ============================= ==================================================
  Constant                      Description
 ============================= ==================================================
-`FIRST_COMPLETED`             The method will return when any call finishes.
-`FIRST_EXCEPTION`             The method will return when any call raises an
-                              exception or when all calls finish.
+`FIRST_COMPLETED`             The method will return when any future finishes or
+                              is cancelled.
+`FIRST_EXCEPTION`             The method will return when any future finishes by
+                              raising an exception. If not future raises an
+                              exception then it is equivalent to ALL_COMPLETED.
 `ALL_COMPLETED`               The method will return when all calls finish.
-`RETURN_IMMEDIATELY`          The method will return immediately.
 ============================= ==================================================
 
 `as_completed(fs, timeout=None)`
@@ -273,11 +279,13 @@ method calls as asynchronous. A proxy result would be returned while the
 operation is eagerly evaluated asynchronously, and execution would only
 block if the proxy object were used before the operation completed.
 
+Anh Hai Trinh proposed a simpler but more limited API concept [5]_.
+
 ========================
 Reference Implementation
 ========================
 
-The reference implementation [5]_ contains a complete implementation of the
+The reference implementation [6]_ contains a complete implementation of the
 proposed design. It has been tested on Linux and Mac OS X.
 
 ==========
@@ -307,8 +315,13 @@ References
 
 .. [5]
 
-   Reference `futures` implementation `http://code.google.com/p/pythonfutures`
+    A discussion of `stream`, a similar concept proposed by Anh Hai Trinh
+   `http://www.mail-archive.com/stdlib-sig@python.org/msg00480.html`
 
+.. [6]
+
+   Reference `futures` implementation `http://code.google.com/p/pythonfutures`
+   
 =========
 Copyright
 =========
