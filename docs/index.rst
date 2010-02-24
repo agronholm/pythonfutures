@@ -81,8 +81,8 @@ ThreadPoolExecutor Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 ::
 
-    import urllib.request
     import futures
+    import urllib.request
     
     URLS = ['http://www.foxnews.com/',
             'http://www.cnn.com/',
@@ -97,12 +97,13 @@ ThreadPoolExecutor Example
         future_to_url = dict((executor.submit(load_url, url, 60), url)
                              for url in URLS)
     
-    for future in futures.as_completed(future_to_url):
-        url = future_to_url[future]
-        if future.exception() is not None:
-            print('%r generated an exception: %s' % (url, future.exception()))
-        else:
-            print('%r page is %d bytes' % (url, len(future.result())))
+        for future in futures.as_completed(future_to_url):
+            url = future_to_url[future]
+            if future.exception() is not None:
+                print('%r generated an exception: %s' % (url,
+                                                         future.exception()))
+            else:
+                print('%r page is %d bytes' % (url, len(future.result())))
 
 ProcessPoolExecutor Objects
 ---------------------------
