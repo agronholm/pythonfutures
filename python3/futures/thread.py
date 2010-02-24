@@ -4,11 +4,8 @@
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
-from futures._base import (PENDING, RUNNING, CANCELLED,
-                           CANCELLED_AND_NOTIFIED, FINISHED,
-                           LOGGER,
-                           Executor, Future)
 import atexit
+import futures._base
 import queue
 import threading
 import weakref
@@ -60,23 +57,15 @@ class _WorkItem(object):
         self.kwargs = kwargs
 
     def run(self):
-        with self.future._condition:
-            if self.future._state == PENDING:
-                self.future._state = RUNNING
-            elif self.future._check_cancel_and_notify():
-                return
-            else:
-                LOGGER.critical('Future %s in unexpected state: %s',
-                                id(self.future),
-                                self.future._state)
-                return
+        if not self.future.set_running_or_notify_cancel():
+            return
 
         try:
             result = self.fn(*self.args, **self.kwargs)
         except BaseException as e:
-            self.future._set_exception(e)
+            self.future.set_exception(e)
         else:
-            self.future._set_result(result)
+            self.future.set_result(result)
 
 def _worker(executor_reference, work_queue):
     try:
@@ -95,9 +84,9 @@ def _worker(executor_reference, work_queue):
             else:
                 work_item.run()
     except BaseException as e:
-        LOGGER.critical('Exception in worker', exc_info=True)
+        futures._base.LOGGER.critical('Exception in worker', exc_info=True)
 
-class ThreadPoolExecutor(Executor):
+class ThreadPoolExecutor(futures._base.Executor):
     def __init__(self, max_workers):
         """Initializes a new ThreadPoolExecutor instance.
 
@@ -118,13 +107,13 @@ class ThreadPoolExecutor(Executor):
             if self._shutdown:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 
-            f = Future()
+            f = futures._base.Future()
             w = _WorkItem(f, fn, args, kwargs)    
 
             self._work_queue.put(w)
             self._adjust_thread_count()
             return f
-    submit.__doc__ = Executor.submit.__doc__
+    submit.__doc__ = futures._base.Executor.submit.__doc__
 
     def _adjust_thread_count(self):
         # TODO(bquinlan): Should avoid creating new threads if there are more
@@ -143,5 +132,5 @@ class ThreadPoolExecutor(Executor):
         if wait:
             for t in self._threads:
                 t.join()
-    shutdown.__doc__ = Executor.shutdown.__doc__
+    shutdown.__doc__ = futures._base.Executor.shutdown.__doc__
 

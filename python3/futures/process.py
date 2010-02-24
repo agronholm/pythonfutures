@@ -44,8 +44,8 @@ Process #1..n:
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
-from futures._base import RUNNING, Executor, Future
 import atexit
+import futures
 import queue
 import multiprocessing
 import threading
@@ -170,17 +170,15 @@ def _add_call_item_to_queue(pending_work_items,
         else:
             work_item = pending_work_items[work_id]
 
-            if work_item.future._check_cancel_and_notify():
-                del pending_work_items[work_id]
-                continue
-            else:
-                with work_item.future._condition:
-                    work_item.future._state = RUNNING
+            if work_item.future.set_running_or_notify_cancel():
                 call_queue.put(_CallItem(work_id, 
                                          work_item.fn,
                                          work_item.args,
                                          work_item.kwargs),
                                block=True)
+            else:
+                del pending_work_items[work_id]
+                continue
 
 def _queue_manangement_worker(executor_reference,
                               processes,
@@ -242,11 +240,11 @@ def _queue_manangement_worker(executor_reference,
 
             with work_item.future._condition:
                 if result_item.exception:
-                    work_item.future._set_exception(result_item.exception)
+                    work_item.future.set_exception(result_item.exception)
                 else:
-                    work_item.future._set_result(result_item.result)
+                    work_item.future.set_result(result_item.result)
 
-class ProcessPoolExecutor(Executor):
+class ProcessPoolExecutor(futures._base.Executor):
     def __init__(self, max_workers=None):
         """Initializes a new ProcessPoolExecutor instance.
 
@@ -309,7 +307,7 @@ class ProcessPoolExecutor(Executor):
             if self._shutdown_thread:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 
-            f = Future()
+            f = futures._base.Future()
             w = _WorkItem(f, fn, args, kwargs)
 
             self._pending_work_items[self._queue_count] = w
@@ -319,7 +317,7 @@ class ProcessPoolExecutor(Executor):
             self._start_queue_management_thread()
             self._adjust_process_count()
             return f
-    submit.__doc__ = Executor.submit.__doc__
+    submit.__doc__ = futures._base.Executor.submit.__doc__
 
     def shutdown(self, wait=True):
         with self._shutdown_lock:
@@ -328,7 +326,7 @@ class ProcessPoolExecutor(Executor):
             if self._queue_management_thread:
                 self._queue_management_thread.join()
 
-    shutdown.__doc__ = Executor.shutdown.__doc__
+    shutdown.__doc__ = futures._base.Executor.shutdown.__doc__
 
 atexit.register(_python_exit)
 

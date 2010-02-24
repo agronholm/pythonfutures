@@ -621,7 +621,7 @@ class FutureTests(unittest.TestCase):
         def notification():
             # Wait until the main thread is waiting for the result.
             time.sleep(1)
-            f1._set_result(42)
+            f1.set_result(42)
 
         f1 = create_future(state=PENDING)
         t = threading.Thread(target=notification)

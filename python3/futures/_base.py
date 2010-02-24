@@ -304,38 +304,6 @@ class Future(object):
         with self._condition:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]
 
-    def _check_cancel_and_notify(self):
-        '''Check if the Future was cancelled and notify its waiter if it was.
-
-        Returns:
-            True if the Future was cancelled, False otherwise.
-        '''
-        with self._condition:
-            if self._state == CANCELLED:
-                self._state = CANCELLED_AND_NOTIFIED
-                for waiter in self._waiters:
-                    waiter.add_cancelled(self)
-                # self._condition.notify_all() is not necessary because 
-                # self.cancel() triggers a notification.
-                return True
-            return False
-
-    def _set_result(self, result):
-        with self._condition:
-            self._result = result
-            self._state = FINISHED
-            for waiter in self._waiters:
-                waiter.add_result(self)
-            self._condition.notify_all()
-
-    def _set_exception(self, exception):
-        with self._condition:
-            self._exception = exception
-            self._state = FINISHED
-            for waiter in self._waiters:
-                waiter.add_exception(self)
-            self._condition.notify_all()
-
     def __get_result(self):
         if self._exception:
             raise self._exception
@@ -405,6 +373,69 @@ class Future(object):
                 return self._exception
             else:
                 raise TimeoutError()
+
+    # The following methods should only be used by Executors and in tests.
+    def set_running_or_notify_cancel(self):
+        '''Mark the future as running or process any cancel notifications.
+
+        If the future has been cancelled (cancel() was called and returned
+        True) then any threads waiting on the future completing (though calls
+        to as_completed() or wait()) are notified and False is returned.
+
+        If the future was not cancelled then it is put in the running state
+        (future calls to running() will return True) and True is returned.
+
+        This method should be called by Executor implementations before
+        executing the work associated with this future. If this method returns
+        False then the work should not be executed.
+
+        Returns:
+            False if the Future was cancelled, True otherwise.
+
+        Raises:
+            RuntimeError: if this method was already called or if set_result()
+                or set_exception() was called.
+        '''
+        with self._condition:
+            if self._state == CANCELLED:
+                self._state = CANCELLED_AND_NOTIFIED
+                for waiter in self._waiters:
+                    waiter.add_cancelled(self)
+                # self._condition.notify_all() is not necessary because 
+                # self.cancel() triggers a notification.
+                return False
+            elif self._state == PENDING:
+                self._state = RUNNING
+                return True
+            else:
+                LOGGER.critical('Future %s in unexpected state: %s',
+                                id(self.future),
+                                self.future._state)
+                raise RuntimeError('Future in unexpected state')
+
+    def set_result(self, result):
+        """Sets the return value of work associated with the future.
+        
+        Should only be called by Executor implementations.
+        """
+        with self._condition:
+            self._result = result
+            self._state = FINISHED
+            for waiter in self._waiters:
+                waiter.add_result(self)
+            self._condition.notify_all()
+
+    def set_exception(self, exception):
+        """Sets the result of the future as being the given exception.
+        
+        Should only be called by Executor implementations.
+        """
+        with self._condition:
+            self._exception = exception
+            self._state = FINISHED
+            for waiter in self._waiters:
+                waiter.add_exception(self)
+            self._condition.notify_all()
 
 class Executor(object):
     """This is an abstract base class for concrete asynchronous executors."""

@@ -167,6 +167,11 @@ or method call. :class:`Future` instances are created by
 
    Return `True` if the call was successfully cancelled.
 
+.. method:: Future.running()
+
+   Return `True` if the call is currently being executed and cannot be
+   cancelled.
+
 .. method:: Future.done()
 
    Return `True` if the call was successfully cancelled or finished running.
@@ -195,6 +200,39 @@ or method call. :class:`Future` instances are created by
    be raised.
 
    If the call completed without raising then ``None`` is returned.   
+
+Internal Future Methods 
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The following :class:`Future` methods are meant for use in unit tests and
+:class:`Executor` implementations.
+
+.. method:: Future.set_running_or_notify_cancel()
+
+   Should be called by :class:`Executor` implementations before executing the
+   work associated with the :class:`Future`.
+
+   If the method returns `False` then the :class:`Future` was cancelled i.e.
+   :meth:`Future.cancel` was called and returned `True`. Any threads waiting
+   on the :class:`Future` completing (i.e. through :func:`as_completed` or
+   :func:`wait`) will be woken up.
+
+   If the method returns `True` then the :class:`Future` was not cancelled
+   and has been put in the running state i.e. calls to
+   :meth:`Future.running` will return `True`.
+
+   This method can only be called once and cannot be called after
+   :meth:`Future.set_result` or :meth:`Future.set_exception` have been
+   called.
+
+.. method:: Future.set_result(result)
+
+   Sets the result of the work associated with the :class:`Future` to *result*.
+
+.. method:: Future.set_exception(exception)
+
+   Sets the result of the work associated with the :class:`Future` to the
+   :class:`Exception` *exception*.
 
 Module Functions
 ----------------
