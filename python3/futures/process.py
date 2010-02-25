@@ -238,11 +238,10 @@ def _queue_manangement_worker(executor_reference,
             work_item = pending_work_items[result_item.work_id]
             del pending_work_items[result_item.work_id]
 
-            with work_item.future._condition:
-                if result_item.exception:
-                    work_item.future.set_exception(result_item.exception)
-                else:
-                    work_item.future.set_result(result_item.result)
+            if result_item.exception:
+                work_item.future.set_exception(result_item.exception)
+            else:
+                work_item.future.set_result(result_item.result)
 
 class ProcessPoolExecutor(futures._base.Executor):
     def __init__(self, max_workers=None):
