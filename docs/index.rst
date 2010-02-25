@@ -71,6 +71,40 @@ ThreadPoolExecutor Objects
 The :class:`ThreadPoolExecutor` class is an :class:`Executor` subclass that uses
 a pool of threads to execute calls asynchronously.
 
+Deadlock can occur when the callable associated with a :class:`Future` waits on
+the results of another :class:`Future`. For example:
+
+::
+
+    import time
+    def wait_on_b():
+        time.sleep(5)
+        print(b.result())  # b will never complete because it is waiting on a.
+        return 5
+
+    def wait_on_a():
+        time.sleep(5)
+        print(a.result())  # a will never complete because it is waiting on b.
+        return 6
+
+
+    executor = ThreadPoolExecutor(max_workers=2)
+    a = executor.submit(wait_on_b)
+    b = executor.submit(wait_on_a)
+
+And:
+
+::
+
+    def wait_on_future():
+        f = executor.submit(pow, 5, 2)
+        # This will never complete because there is only one worker thread and
+        # it is executing this function.
+        print(f.result())
+    
+    executor = ThreadPoolExecutor(max_workers=1)
+    executor.submit(wait_on_future)
+
 .. class:: ThreadPoolExecutor(max_workers)
 
    Executes calls asynchronously using at pool of at most *max_workers* threads.
@@ -201,7 +235,7 @@ or method call. :class:`Future` instances are created by
 
    If the call completed without raising then ``None`` is returned.   
 
-Internal Future Methods 
+Internal Future Methods
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 The following :class:`Future` methods are meant for use in unit tests and
