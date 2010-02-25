@@ -1,11 +1,11 @@
-PEP:               XXX
+PEP:               3148
 Title:             futures - execute computations asynchronously
 Version:           $Revision$
 Last-Modified:     $Date$
 Author:            Brian Quinlan <brian@sweetapp.com>
 Status:            Draft
 Type:              Standards Track
-Content-Type:      text/x-rstÄ
+Content-Type:      text/x-rst
 Created:           16-Oct-2009
 Python-Version:    3.2
 Post-History:
@@ -48,17 +48,17 @@ Check Prime Example
         115280095190773,
         115797848077099,
         1099726899285419]
-    
+
     def is_prime(n):
         if n % 2 == 0:
             return False
-    
+
         sqrt_n = int(math.floor(math.sqrt(n)))
         for i in range(3, sqrt_n + 1, 2):
             if n % i == 0:
                 return False
         return True
-    
+
     with futures.ProcessPoolExecutor() as executor:
         for number, is_prime in zip(PRIMES, executor.map(is_prime, PRIMES)):
             print('%d is prime: %s' % (number, is_prime))
@@ -70,20 +70,20 @@ Web Crawl Example
 
     import futures
     import urllib.request
-    
+
     URLS = ['http://www.foxnews.com/',
             'http://www.cnn.com/',
             'http://europe.wsj.com/',
             'http://www.bbc.co.uk/',
             'http://some-made-up-domain.com/']
-    
+
     def load_url(url, timeout):
         return urllib.request.urlopen(url, timeout=timeout).read()
-    
+
     with futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_url = dict((executor.submit(load_url, url, 60), url)
                              for url in URLS)
-    
+
         for future in futures.as_completed(future_to_url):
             url = future_to_url[future]
             if future.exception() is not None:
@@ -139,7 +139,7 @@ have been freed.
 
 When using an executor as a context manager, `__exit__` will call
 `Executor.shutdown(wait=True)`.
-    
+
 
 ProcessPoolExecutor
 '''''''''''''''''''
@@ -251,8 +251,8 @@ If the call completed without raising then ``None`` is returned.
 Internal Future Methods
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-The following `Future` methods are meant for use in unit tests and
-:class:`Executor` implementations.
+The following `Future` methods are meant for use in unit tests and `Executor`
+implementations.
 
 `set_running_or_notify_cancel()`
 
@@ -316,7 +316,7 @@ following constants:
 Returns an iterator over the Future instances given by *fs* that yields futures
 as they complete (finished or were cancelled). Any futures that completed
 before `as_completed()` was called will be yielded first. The returned iterator
-raises a `TimeoutError` if `__next__()` is called and the result isnÕt available
+raises a `TimeoutError` if `__next__()` is called and the result isn't available
 after *timeout* seconds from the original call to `as_completed()`. If
 *timeout* is not specified or `None` then there is no limit to the wait time.
 
@@ -365,33 +365,26 @@ References
 ==========
 
 .. [1]
-
    `java.util.concurrent` package documentation
    `http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/package-summary.html`
 
 .. [2]
-
    Python Cookbook recipe 84317, "Easy threading with Futures"
    `http://code.activestate.com/recipes/84317/`
 
 .. [3]
-
    `Python-3000` thread, "mechanism for handling asynchronous concurrency"
    `http://mail.python.org/pipermail/python-3000/2006-April/000960.html`
 
-
 .. [4]
-
    `Python 3000` thread, "Futures in Python 3000 (was Re: mechanism for handling asynchronous concurrency)"
    `http://mail.python.org/pipermail/python-3000/2006-April/000970.html`
 
 .. [5]
-
-    A discussion of `stream`, a similar concept proposed by Anh Hai Trinh
+   A discussion of `stream`, a similar concept proposed by Anh Hai Trinh
    `http://www.mail-archive.com/stdlib-sig@python.org/msg00480.html`
 
 .. [6]
-
    Reference `futures` implementation
    `http://code.google.com/p/pythonfutures/source/browse/#svn/branches/feedback`
 
