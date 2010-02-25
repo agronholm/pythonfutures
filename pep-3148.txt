@@ -111,6 +111,8 @@ asynchronously.
 Schedules the callable to be executed as fn(*\*args*, *\*\*kwargs*) and returns
 a `Future` instance representing the execution of the function.
 
+This is an abstract method and must be implemented by Executor subclasses.
+
 `map(func, *iterables, timeout=None)`
 
 Equivalent to map(*func*, *\*iterables*) but executed asynchronously and
