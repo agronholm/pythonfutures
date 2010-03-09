@@ -273,15 +273,10 @@ Module Functions
 
 .. function:: wait(fs, timeout=None, return_when=ALL_COMPLETED)
 
-   Wait for the :class:`Future` instances in the given sequence to complete.
-   Returns a named 2-tuple of sets. The first set, named "finished", contains
-   the futures that completed (finished or were cancelled) before the wait
-   completed. The second set, named "not_finished", contains uncompleted
-   futures.
-
-   This method should always be called using keyword arguments, which are:
-
-   *fs* is the sequence of :class:`Future` instances that should be waited on.
+   Wait for the :class:`Future` instances given by *fs*  to complete. Returns a
+   named 2-tuple of sets. The first set, named "finished", contains the futures
+   that completed (finished or were cancelled) before the wait completed. The
+   second set, named "not_finished", contains uncompleted futures.
 
    *timeout* can be used to control the maximum number of seconds to wait before
    returning. If *timeout* is not specified or ``None`` then there is no limit

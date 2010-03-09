@@ -284,14 +284,10 @@ Module Functions
 
 `wait(fs, timeout=None, return_when=ALL_COMPLETED)`
 
-Wait for the `Future` instances in the given sequence to complete. Returns a
-named 2-tuple of sets. The first set, named "finished", contains the futures
-that completed (finished  or were cancelled) before the wait completed. The
-second set, named "not_finished", contains uncompleted futures.
-
-This method should always be called using keyword arguments, which are:
-
-*fs* is the sequence of Future instances that should be waited on.
+Wait for the `Future` instances given by *fs* to complete. Returns a named
+2-tuple of sets. The first set, named "finished", contains the futures that
+completed (finished  or were cancelled) before the wait completed. The second
+set, named "not_finished", contains uncompleted futures.
 
 *timeout* can be used to control the maximum number of seconds to wait before
 returning. If timeout is not specified or None then there is no limit to the
@@ -313,11 +309,11 @@ following constants:
 
 `as_completed(fs, timeout=None)`
 
-Returns an iterator over the Future instances given by *fs* that yields futures
-as they complete (finished or were cancelled). Any futures that completed
-before `as_completed()` was called will be yielded first. The returned iterator
-raises a `TimeoutError` if `__next__()` is called and the result isn't available
-after *timeout* seconds from the original call to `as_completed()`. If
+Returns an iterator over the `Future` instances given by *fs* that yields
+futures as they complete (finished or were cancelled). Any futures that
+completed before `as_completed()` was called will be yielded first. The returned
+iterator raises a `TimeoutError` if `__next__()` is called and the result isn't
+available after *timeout* seconds from the original call to `as_completed()`. If
 *timeout* is not specified or `None` then there is no limit to the wait time.
 
 =========
