@@ -149,6 +149,9 @@ processes to execute calls asynchronously. The callable objects and arguments
 passed to `ProcessPoolExecutor.submit` must be serializeable according to the
 same limitations as the multiprocessing module.
 
+Calling `Executor` or `Future` methods from within a callable submitted to a
+`ProcessPoolExecutor` will result in deadlock.
+
 `__init__(max_workers)`
 
 Executes calls asynchronously using a pool of a most *max_workers*

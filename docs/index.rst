@@ -148,6 +148,9 @@ uses a pool of processes to execute calls asynchronously.
 allows it to side-step the :term:`Global Interpreter Lock` but also means that
 only picklable objects can be executed and returned.
 
+Calling :class:`Executor` or :class:`Future` methods from a callable submitted
+to a :class:`ProcessPoolExecutor` will result in deadlock.
+
 .. class:: ProcessPoolExecutor(max_workers=None)
 
    Executes calls asynchronously using a pool of at most *max_workers*
