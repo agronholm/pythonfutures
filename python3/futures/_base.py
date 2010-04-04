@@ -256,6 +256,11 @@ class Future(object):
         self._result = None
         self._exception = None
         self._waiters = []
+        self._done_callbacks = set()
+
+    def _invoke_callbacks(self):
+        for callback in self._done_callbacks:
+            callback(self)
 
     def __repr__(self):
         with self._condition:
@@ -284,10 +289,14 @@ class Future(object):
             if self._state in [RUNNING, FINISHED]:
                 return False
 
-            if self._state not in [CANCELLED, CANCELLED_AND_NOTIFIED]:
-                self._state = CANCELLED
-                self._condition.notify_all()
-            return True
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                return True
+
+            self._state = CANCELLED
+            self._condition.notify_all()
+
+        self._invoke_callbacks()
+        return True
 
     def cancelled(self):
         """Return True if the future has cancelled."""
@@ -309,6 +318,34 @@ class Future(object):
             raise self._exception
         else:
             return self._result
+
+    def add_done_callback(self, fn):
+        """Attaches a function that will be called when the future finishes.
+
+        Args:
+            fn: A function that will be called with this future as its only
+                argument when the future completes or is cancelled. If the
+                future has already completed or been cancelled then the function
+                will be called immediately. If the same function is added
+                several times then it will still only be called once.
+        """
+        with self._condition:
+            if self._state not in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]:
+                self._done_callbacks.add(fn)
+                return
+        fn(self)
+
+    def remove_done_callback(self, fn):
+        """Removes a function previously attached by add_done_callback.
+
+        Args:
+            fn: A function that was previously added using add_done_callback.
+
+        Raises:
+            KeyError: if the function was not added using add_done_callback or
+                was already removed.
+        """
+        self._done_callbacks.remove(fn)
 
     def result(self, timeout=None):
         """Return the result of the call that the future represents.
@@ -424,6 +461,7 @@ class Future(object):
             for waiter in self._waiters:
                 waiter.add_result(self)
             self._condition.notify_all()
+        self._invoke_callbacks()
 
     def set_exception(self, exception):
         """Sets the result of the future as being the given exception.
@@ -436,6 +474,7 @@ class Future(object):
             for waiter in self._waiters:
                 waiter.add_exception(self)
             self._condition.notify_all()
+        self._invoke_callbacks()
 
 class Executor(object):
     """This is an abstract base class for concrete asynchronous executors."""

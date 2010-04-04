@@ -537,6 +537,92 @@ class ProcessPoolExecutorTest(ExecutorTest):
         self.executor.shutdown(wait=True)
 
 class FutureTests(unittest.TestCase):
+    def test_done_callback_with_result(self):
+        callback_result = None
+        def fn(callback_future):
+            nonlocal callback_result
+            callback_result = callback_future.result()
+
+        f = Future()
+        f.add_done_callback(fn)
+        f.set_result(5)
+        self.assertEquals(5, callback_result)
+
+    def test_done_callback_with_exception(self):
+        callback_exception = None
+        def fn(callback_future):
+            nonlocal callback_exception
+            callback_exception = callback_future.exception()
+
+        f = Future()
+        f.add_done_callback(fn)
+        f.set_exception(Exception('test'))
+        self.assertEquals(('test',), callback_exception.args)
+
+    def test_done_callback_with_cancel(self):
+        was_cancelled = None
+        def fn(callback_future):
+            nonlocal was_cancelled
+            was_cancelled = callback_future.cancelled()
+
+        f = Future()
+        f.add_done_callback(fn)
+        self.assertTrue(f.cancel())
+        self.assertTrue(was_cancelled)
+
+    def test_done_callback_already_successful(self):
+        callback_result = None
+        def fn(callback_future):
+            nonlocal callback_result
+            callback_result = callback_future.result()
+
+        f = Future()
+        f.set_result(5)
+        f.add_done_callback(fn)
+        self.assertEquals(5, callback_result)
+
+    def test_done_callback_already_failed(self):
+        callback_exception = None
+        def fn(callback_future):
+            nonlocal callback_exception
+            callback_exception = callback_future.exception()
+
+        f = Future()
+        f.set_exception(Exception('test'))
+        f.add_done_callback(fn)
+        self.assertEquals(('test',), callback_exception.args)
+
+    def test_done_callback_already_cancelled(self):
+        was_cancelled = None
+        def fn(callback_future):
+            nonlocal was_cancelled
+            was_cancelled = callback_future.cancelled()
+
+        f = Future()
+        self.assertTrue(f.cancel())
+        f.add_done_callback(fn)
+        self.assertTrue(was_cancelled)
+
+    def test_remove_done_callback(self):
+        was_called = False
+        def fn(callback_future):
+            nonlocal was_called
+            was_called = True
+
+        f = Future()
+        f.add_done_callback(fn)
+        f.remove_done_callback(fn)
+        self.assertFalse(was_called)
+
+    def test_remove_done_callback_twice(self):
+        def fn(callback_future):
+            pass
+
+        f = Future()
+        f.add_done_callback(fn)
+        f.remove_done_callback(fn)
+        self.assertRaises(KeyError, f.remove_done_callback, fn)
+        
     def test_repr(self):
         self.assertRegexpMatches(repr(PENDING_FUTURE),
                                  '<Future at 0x[0-9a-f]+ state=pending>')

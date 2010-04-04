@@ -235,6 +235,23 @@ or method call. :class:`Future` instances are created by
 
    If the call completed without raising then ``None`` is returned.   
 
+.. method:: Future.add_done_callback(fn)
+
+   Attaches the function *fn* to the future. *fn* will be called, with the
+   future as its only argument, when the future is cancelled or finishes
+   running.
+ 
+   If the future has already completed or been cancelled then *fn* will be
+   called immediately. If the same function is added several times then it will
+   still only be called once.
+
+.. method:: Future.remove_done_callback(fn)
+
+   Removes the function *fn*, which was previously attached to the future using
+   :meth:`Future.add_done_callback`.
+
+   `KeyError` is raised if the function *fn* was not previously attached.
+
 Internal Future Methods
 ^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -215,11 +215,11 @@ will be cancelled and the method will return `True`.
 
 Return `True` if the call was successfully cancelled.
 
-`Future.running()`
+`running()`
 
 Return `True` if the call is currently being executed and cannot be cancelled.
 
-`Future.done()`
+`done()`
 
 Return `True` if the call was successfully cancelled or finished running.
 
@@ -247,6 +247,25 @@ If the future is cancelled before completing then `CancelledError` will
 be raised.
 
 If the call completed without raising then ``None`` is returned.
+
+`add_done_callback(fn)`
+
+Attaches a function *fn* to the future that will be called when the future is
+cancelled or finishes running. *fn* will be called with the future as its only
+argument.
+
+If the future has already completed or been cancelled then *fn* will be called
+immediately. If the same function is added several times then it will still only
+be called once.
+
+NOTE: This method can be used to create adapters from Futures to Twisted
+Deferreds.
+
+`remove_done_callback(fn)`
+
+Removes the function *fn*, which was previously attached to the future using
+`add_done_callback`. `KeyError` is raised if the function was not previously
+attached.
 
 Internal Future Methods
 ^^^^^^^^^^^^^^^^^^^^^^^
