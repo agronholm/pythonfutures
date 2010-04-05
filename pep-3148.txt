@@ -369,13 +369,14 @@ method calls as asynchronous. A proxy result would be returned while the
 operation is eagerly evaluated asynchronously, and execution would only
 block if the proxy object were used before the operation completed.
 
-Anh Hai Trinh proposed a simpler but more limited API concept [5]_.
+Anh Hai Trinh proposed a simpler but more limited API concept [5]_ and the API
+has been discussed in some detail on stdlib-sig [6]_.
 
 ========================
 Reference Implementation
 ========================
 
-The reference implementation [6]_ contains a complete implementation of the
+The reference implementation [7]_ contains a complete implementation of the
 proposed design. It has been tested on Linux and Mac OS X.
 
 ==========
@@ -403,6 +404,10 @@ References
    `http://www.mail-archive.com/stdlib-sig@python.org/msg00480.html`
 
 .. [6]
+   A discussion of the proposed API on stdlib-sig
+   `http://mail.python.org/pipermail/stdlib-sig/2009-November/000731.html`
+
+.. [7]
    Reference `futures` implementation
    `http://code.google.com/p/pythonfutures/source/browse/#svn/branches/feedback`
 
