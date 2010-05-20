@@ -4,6 +4,11 @@ import unittest
 import threading
 import time
 import multiprocessing
+import sys
+
+if sys.platform.startswith('win'):
+    import ctypes
+    import ctypes.wintypes
 
 import futures
 import futures._base
@@ -30,54 +35,76 @@ def mul(x, y):
 
 class Call(object):
     CALL_LOCKS = {}
+    def _create_event(self):
+        if sys.platform.startswith('win'):
+            class SECURITY_ATTRIBUTES(ctypes.Structure):
+                _fields_ = [("nLength", ctypes.wintypes.DWORD),
+                            ("lpSecurityDescriptor", ctypes.wintypes.LPVOID),
+                            ("bInheritHandle", ctypes.wintypes.BOOL)]
+
+            s = SECURITY_ATTRIBUTES()
+            s.nLength = ctypes.sizeof(s)
+            s.lpSecurityDescriptor = None
+            s.bInheritHandle = True
+
+            handle = ctypes.windll.kernel32.CreateEventA(ctypes.pointer(s),
+                                                         True,
+                                                         False,
+                                                         None)
+            assert handle is not None
+            return handle
+        else:
+            event = multiprocessing.Event()
+            self.CALL_LOCKS[id(event)] = event
+            return id(event)
+
+    def _wait_on_event(self, handle):
+        if sys.platform.startswith('win'):
+            r = ctypes.windll.kernel32.WaitForSingleObject(handle, 5 * 1000)
+            assert r == 0
+        else:
+            self.CALL_LOCKS[handle].wait()
+
+    def _signal_event(self, handle):
+        if sys.platform.startswith('win'):
+            r = ctypes.windll.kernel32.SetEvent(handle)
+            assert r != 0
+        else:
+            self.CALL_LOCKS[handle].set()
+        
     def __init__(self, manual_finish=False, result=42):
-        called_event = multiprocessing.Event()
-        can_finish = multiprocessing.Event()
+        self._called_event = self._create_event()
+        self._can_finish = self._create_event()
 
         self._result = result
-        self._called_event_id = id(called_event)
-        self._can_finish_event_id = id(can_finish)
-
-        self.CALL_LOCKS[self._called_event_id] = called_event
-        self.CALL_LOCKS[self._can_finish_event_id] = can_finish
 
         if not manual_finish:
-            self._can_finish.set()
-
-    @property
-    def _can_finish(self):
-        return self.CALL_LOCKS[self._can_finish_event_id]
-
-    @property
-    def _called_event(self):
-        return self.CALL_LOCKS[self._called_event_id]
+            self._signal_event(self._can_finish)
 
     def wait_on_called(self):
-        self._called_event.wait()
+        self._wait_on_event(self._called_event)
 
     def set_can(self):
-        self._can_finish.set()
-
-    def called(self):
-        return self._called_event.is_set()
+        self._signal_event(self._can_finish)
 
     def __call__(self):
-        if self._called_event.is_set(): print('called twice')
+        self._signal_event(self._called_event)
+        self._wait_on_event(self._can_finish)
 
-        self._called_event.set()
-        self._can_finish.wait()
         return self._result
 
     def close(self):
-        del self.CALL_LOCKS[self._called_event_id]
-        del self.CALL_LOCKS[self._can_finish_event_id]
+        if sys.platform.startswith('win'):
+            ctypes.windll.kernel32.CloseHandle(self._called_event)
+            ctypes.windll.kernel32.CloseHandle(self._can_finish)
+        else:
+            del CALL_LOCKS[self._called_event]
+            del CALL_LOCKS[self._can_finish]
 
 class ExceptionCall(Call):
     def __call__(self):
-        assert not self._called_event.is_set(), 'already called'
-
-        self._called_event.set()
-        self._can_finish.wait()
+        self._signal_event(self._called_event)
+        self._wait_on_event(self._can_finish)
         raise ZeroDivisionError()
 
 class ExecutorShutdownTest(unittest.TestCase):
@@ -514,7 +541,7 @@ class ExecutorTest(unittest.TestCase):
     def test_map_timeout(self):
         results = []
         try:
-            for i in self.executor.map(time.sleep, [0, 0.1, 1], timeout=1):
+            for i in self.executor.map(time.sleep, [0, 0.1, 5], timeout=4):
                 results.append(i)
         except futures.TimeoutError:
             pass
