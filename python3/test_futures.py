@@ -98,8 +98,8 @@ class Call(object):
             ctypes.windll.kernel32.CloseHandle(self._called_event)
             ctypes.windll.kernel32.CloseHandle(self._can_finish)
         else:
-            del CALL_LOCKS[self._called_event]
-            del CALL_LOCKS[self._can_finish]
+            del self.CALL_LOCKS[self._called_event]
+            del self.CALL_LOCKS[self._can_finish]
 
 class ExceptionCall(Call):
     def __call__(self):
