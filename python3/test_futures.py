@@ -34,6 +34,10 @@ def mul(x, y):
     return x * y
 
 class Call(object):
+    """A call that can be submitted to a future.Executor for testing.
+
+    The call signals when it is called and waits for an event before finishing.
+    """
     CALL_LOCKS = {}
     def _create_event(self):
         if sys.platform.startswith('win'):
