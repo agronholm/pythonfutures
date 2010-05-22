@@ -32,13 +32,14 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
 
 .. method:: Executor.map(func, *iterables, timeout=None)
 
-   Equivalent to map(*func*, *\*iterables*) but executed asynchronously and
-   possibly out-of-order. The returned iterator raises a :exc:`TimeoutError` if
-   :meth:`__next__()` is called and the result isn't available after
-   *timeout* seconds from the original call to :meth:`map()`. If
-   *timeout* is not specified or ``None`` then there is no limit to the wait
-   time. If a call raises an exception then that exception will be raised when
-   its value is retrieved from the iterator.
+   Equivalent to map(*func*, *\*iterables*) but func is executed asynchronously
+   and several calls to *func* may be made concurrently. The returned iterator
+   raises a :exc:`TimeoutError` if :meth:`__next__()` is called and the result
+   isn't available after *timeout* seconds from the original call to
+   :meth:`map()`. *timeout* can be an int or float. If *timeout* is not
+   specified or ``None`` then there is no limit to the wait time. If a call
+   raises an exception then that exception will be raised when its value is
+   retrieved from the iterator.
 
 .. method:: Executor.shutdown(wait=True)
 
@@ -183,9 +184,13 @@ ProcessPoolExecutor Example
                return False
        return True
 
-   with futures.ProcessPoolExecutor() as executor:
-       for number, is_prime in zip(PRIMES, executor.map(is_prime, PRIMES)):
-           print('%d is prime: %s' % (number, is_prime))
+   def main():
+       with futures.ProcessPoolExecutor() as executor:
+           for number, prime in zip(PRIMES, executor.map(is_prime, PRIMES)):
+               print('%d is prime: %s' % (number, prime))
+
+   if __name__ == '__main__':
+       main()
 
 Future Objects
 --------------
@@ -217,8 +222,9 @@ or method call. :class:`Future` instances are created by
 
    Return the value returned by the call. If the call hasn't yet completed then
    this method will wait up to *timeout* seconds. If the call hasn't completed
-   in *timeout* seconds then a :exc:`TimeoutError` will be raised. If *timeout*
-   is not specified or ``None`` then there is no limit to the wait time.
+   in *timeout* seconds then a :exc:`TimeoutError` will be raised. *timeout* can
+   be an int or float.If *timeout* is not specified or ``None`` then there is no
+   limit to the wait time.
 
    If the future is cancelled before completing then :exc:`CancelledError` will
    be raised.
@@ -230,8 +236,8 @@ or method call. :class:`Future` instances are created by
    Return the exception raised by the call. If the call hasn't yet completed
    then this method will wait up to *timeout* seconds. If the call hasn't
    completed in *timeout* seconds then a :exc:`TimeoutError` will be raised.
-   If *timeout* is not specified or ``None`` then there is no limit to the wait
-   time.
+   *timeout* can be an int or float. If *timeout* is not specified or ``None``
+   then there is no limit to the wait time.
 
    If the future is cancelled before completing then :exc:`CancelledError` will
    be raised.
@@ -299,8 +305,8 @@ Module Functions
    second set, named "not_finished", contains uncompleted futures.
 
    *timeout* can be used to control the maximum number of seconds to wait before
-   returning. If *timeout* is not specified or ``None`` then there is no limit
-   to the wait time.
+   returning. *timeout* can be an int or float. If *timeout* is not specified or
+   ``None`` then there is no limit to the wait time.
 
    *return_when* indicates when the method should return. It must be one of the
    following constants:
@@ -328,6 +334,6 @@ Module Functions
    that completed before :func:`as_completed()` was called will be yielded
    first. The returned iterator raises a :exc:`TimeoutError` if
    :meth:`__next__()` is called and the result isn't available after
-   *timeout* seconds from the original call to :func:`as_completed()`. If
-   *timeout* is not specified or ``None`` then there is no limit to the wait
-   time.
+   *timeout* seconds from the original call to :func:`as_completed()`. *timeout*
+   can be an int or float. If *timeout* is not specified or ``None`` then there
+   is no limit to the wait time.
