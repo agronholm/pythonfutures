@@ -64,4 +64,5 @@ def main():
                                                       len(url_map),
                                                       len(URLS)))
 
-main()
+if __name__ == '__main__':
+    main()
