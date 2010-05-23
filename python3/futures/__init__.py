@@ -10,6 +10,7 @@ from futures._base import (FIRST_COMPLETED,
                            CancelledError,
                            TimeoutError,
                            Future,
+                           Executor,
                            wait,
                            as_completed) 
 from futures.thread import ThreadPoolExecutor
