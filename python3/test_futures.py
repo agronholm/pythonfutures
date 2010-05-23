@@ -111,6 +111,15 @@ class ExceptionCall(Call):
         self._wait_on_event(self._can_finish)
         raise ZeroDivisionError()
 
+class MapCall(Call):
+    def __init__(self, result=42):
+        super().__init__(manual_finish=True, result=result)
+
+    def __call__(self, manual_finish):
+        if manual_finish:
+            super().__call__()
+        return self._result
+
 class ExecutorShutdownTest(unittest.TestCase):
     def test_run_after_shutdown(self):
         self.executor.shutdown()
@@ -544,14 +553,22 @@ class ExecutorTest(unittest.TestCase):
 
     def test_map_timeout(self):
         results = []
+        timeout_call = MapCall()
         try:
-            for i in self.executor.map(time.sleep, [0, 0.1, 5], timeout=4):
-                results.append(i)
-        except futures.TimeoutError:
-            pass
-        else:
-            self.fail('expected TimeoutError')
-        self.assertEquals([None, None], results)
+            try:
+                for i in self.executor.map(timeout_call,
+                                           [False, False, True],
+                                           timeout=1):
+                    results.append(i)
+            except futures.TimeoutError:
+                pass
+            else:
+                self.fail('expected TimeoutError')
+        finally:
+            timeout_call.set_can()
+            timeout_call.close()
+
+        self.assertEquals([42, 42], results)
 
 class ThreadPoolExecutorTest(ExecutorTest):
     def setUp(self):
