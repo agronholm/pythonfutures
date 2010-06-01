@@ -58,7 +58,7 @@ import weakref
 #   - The workers would still be running during interpretor shutdown,
 #     meaning that they would fail in unpredictable ways.
 #   - The workers could be killed while evaluating a work item, which could
-#     be bad if the function being evaluated has external side-effects e.g.
+#     be bad if the callable being evaluated has external side-effects e.g.
 #     writing to a file.
 #
 # To work around this problem, an exit handler is installed which tells the

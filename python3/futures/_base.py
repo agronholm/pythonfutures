@@ -149,7 +149,8 @@ def as_completed(fs, timeout=None):
     """An iterator over the given futures that yields each as it completes.
     
     Args:
-        fs: The sequence of Futures to iterate over.
+        fs: The sequence of Futures (possibly created by different Executors) to
+            iterate over.
         timeout: The maximum number of seconds to wait. If None, then there
             is no limit on the wait time.
 
@@ -196,16 +197,17 @@ def as_completed(fs, timeout=None):
         for f in fs:
             f._waiters.remove(waiter)
 
-FinishedAndNotFinishedFutures = collections.namedtuple(
-        'FinishedAndNotFinishedFutures', 'finished not_finished')
+DoneAndNotDoneFutures = collections.namedtuple(
+        'DoneAndNotDoneFutures', 'done not_done')
 def wait(fs, timeout=None, return_when=ALL_COMPLETED):
     """Wait for the futures in the given sequence to complete.
 
     Args:
-        fs: The sequence of futures (created by Executor.submit()) to wait upon.
+        fs: The sequence of Futures (possibly created by different Executors) to
+            wait upon.
         timeout: The maximum number of seconds to wait. If None, then there
             is no limit on the wait time.
-        return_when: Indicates when the method should return. The options
+        return_when: Indicates when this function should return. The options
             are:
 
             FIRST_COMPLETED - Return when any future finishes or is
@@ -216,26 +218,25 @@ def wait(fs, timeout=None, return_when=ALL_COMPLETED):
             ALL_COMPLETED -   Return when all futures finish or are cancelled.
 
     Returns:
-        A named 2-tuple of sets. The first set, named 'finished', contains the
+        A named 2-tuple of sets. The first set, named 'done', contains the
         futures that completed (is finished or cancelled) before the wait
-        completed. The second set, named 'not_finished', contains uncompleted
+        completed. The second set, named 'not_done', contains uncompleted
         futures.
     """
     with _AcquireFutures(fs):
-        finished = set(
-                f for f in fs
-                if f._state in [CANCELLED_AND_NOTIFIED, FINISHED])
-        not_finished = set(fs) - finished
+        done = set(f for f in fs
+                   if f._state in [CANCELLED_AND_NOTIFIED, FINISHED])
+        not_done = set(fs) - done
 
-        if (return_when == FIRST_COMPLETED) and finished:
-            return finished, not_finished
-        elif (return_when == FIRST_EXCEPTION) and finished:
-            if any(f for f in finished
+        if (return_when == FIRST_COMPLETED) and done:
+            return DoneAndNotDoneFutures(done, not_done)
+        elif (return_when == FIRST_EXCEPTION) and done:
+            if any(f for f in done
                    if not f.cancelled() and f.exception() is not None):
-                return finished, not_finished
+                return DoneAndNotDoneFutures(done, not_done)
 
-        if len(finished) == len(fs):
-            return finished, not_finished
+        if len(done) == len(fs):
+            return DoneAndNotDoneFutures(done, not_done)
 
         waiter = _create_and_install_waiters(fs, return_when)
 
@@ -243,8 +244,8 @@ def wait(fs, timeout=None, return_when=ALL_COMPLETED):
     for f in fs:
         f._waiters.remove(waiter)
 
-    finished.update(waiter.finished_futures)
-    return FinishedAndNotFinishedFutures(finished, set(fs) - finished)
+    done.update(waiter.finished_futures)
+    return DoneAndNotDoneFutures(done, set(fs) - done)
 
 class Future(object):
     """Represents the result of an asynchronous computation."""
@@ -256,7 +257,7 @@ class Future(object):
         self._result = None
         self._exception = None
         self._waiters = []
-        self._done_callbacks = set()
+        self._done_callbacks = []
 
     def _invoke_callbacks(self):
         for callback in self._done_callbacks:
@@ -320,32 +321,21 @@ class Future(object):
             return self._result
 
     def add_done_callback(self, fn):
-        """Attaches a function that will be called when the future finishes.
+        """Attaches a callable that will be called when the future finishes.
 
         Args:
-            fn: A function that will be called with this future as its only
-                argument when the future completes or is cancelled. If the
-                future has already completed or been cancelled then the function
-                will be called immediately. If the same function is added
-                several times then it will still only be called once.
+            fn: A callable that will be called with this future as its only
+                argument when the future completes or is cancelled. The callable
+                will always be called by a thread in the same process in which
+                it was added. If the future has already completed or been
+                cancelled then the callable will be called immediately. These
+                callables are called in the order that they were added.
         """
         with self._condition:
             if self._state not in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]:
-                self._done_callbacks.add(fn)
+                self._done_callbacks.append(fn)
                 return
         fn(self)
-
-    def remove_done_callback(self, fn):
-        """Removes a function previously attached by add_done_callback.
-
-        Args:
-            fn: A function that was previously added using add_done_callback.
-
-        Raises:
-            KeyError: if the function was not added using add_done_callback or
-                was already removed.
-        """
-        self._done_callbacks.remove(fn)
 
     def result(self, timeout=None):
         """Return the result of the call that the future represents.
@@ -480,13 +470,13 @@ class Executor(object):
     """This is an abstract base class for concrete asynchronous executors."""
 
     def submit(self, fn, *args, **kwargs):
-        """Submits a function to be executed with the given arguments.
+        """Submits a callable to be executed with the given arguments.
 
         Schedules the callable to be executed as fn(*args, **kwargs) and returns
-        a Future instance representing the execution of the function.
+        a Future instance representing the execution of the callable.
 
         Returns:
-            A Future representing the given function call.
+            A Future representing the given call.
         """
         raise NotImplementedError()
 

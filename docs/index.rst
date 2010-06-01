@@ -5,7 +5,7 @@
    :synopsis: Execute computations asynchronously using threads or processes. 
 
 The :mod:`futures` module provides a high-level interface for asynchronously
-executing functions and methods.
+executing callables.
 
 The asynchronous execution can be be performed by threads using
 :class:`ThreadPoolExecutor` or seperate processes using
@@ -22,7 +22,7 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
 .. method:: Executor.submit(fn, *args, **kwargs)
 
    Schedules the callable to be executed as *fn*(*\*args*, *\*\*kwargs*) and
-   returns a :class:`Future` representing the execution of the function.
+   returns a :class:`Future` representing the execution of the callable.
 
 ::
 
@@ -48,13 +48,17 @@ subclasses: :class:`ThreadPoolExecutor` and :class:`ProcessPoolExecutor`.
    :meth:`Executor.submit` and :meth:`Executor.map` made after shutdown will
    raise :exc:`RuntimeError`.
 
-   If *wait* is `True` then the executor will not return until all the pending
+   If *wait* is `True` then this method will not return until all the pending
    futures are done executing and the resources associated with the executor
-   have been freed.
+   have been freed. If *wait* is `False` then this method will return
+   immediately and the resources associated with the executor will be freed
+   when all pending futures are done executing. Regardless of the value of
+   *wait*, the entire Python program will not exit until all pending futures
+   are done executing.
 
-    You can avoid having to call this method explicitly if you use the `with`
-    statement, which will shutdown the `Executor` (waiting as if
-    `Executor.shutdown` were called with *wait* set to `True`):
+   You can avoid having to call this method explicitly if you use the `with`
+   statement, which will shutdown the `Executor` (waiting as if
+   `Executor.shutdown` were called with *wait* set to `True`):
 
 ::
 
@@ -195,9 +199,8 @@ ProcessPoolExecutor Example
 Future Objects
 --------------
 
-The :class:`Future` class encapulates the asynchronous execution of a function
-or method call. :class:`Future` instances are created by
-:meth:`Executor.submit`.
+The :class:`Future` class encapulates the asynchronous execution of a callable.
+:class:`Future` instances are created by :meth:`Executor.submit`.
 
 .. method:: Future.cancel()
 
@@ -246,20 +249,13 @@ or method call. :class:`Future` instances are created by
 
 .. method:: Future.add_done_callback(fn)
 
-   Attaches the function *fn* to the future. *fn* will be called, with the
+   Attaches the callable *fn* to the future. *fn* will be called, with the
    future as its only argument, when the future is cancelled or finishes
-   running.
+   running. Added callables are called in the order that they were added and are
+   always called in a thread belonging to the process that added them.
  
    If the future has already completed or been cancelled then *fn* will be
-   called immediately. If the same function is added several times then it will
-   still only be called once.
-
-.. method:: Future.remove_done_callback(fn)
-
-   Removes the function *fn*, which was previously attached to the future using
-   :meth:`Future.add_done_callback`.
-
-   `KeyError` is raised if the function *fn* was not previously attached.
+   called immediately.
 
 Internal Future Methods
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -299,17 +295,18 @@ Module Functions
 
 .. function:: wait(fs, timeout=None, return_when=ALL_COMPLETED)
 
-   Wait for the :class:`Future` instances given by *fs*  to complete. Returns a
-   named 2-tuple of sets. The first set, named "finished", contains the futures
-   that completed (finished or were cancelled) before the wait completed. The
-   second set, named "not_finished", contains uncompleted futures.
+   Wait for the :class:`Future` instances (possibly created by different
+   :class:`Executor`s) given by *fs*  to complete. Returns a named 2-tuple of
+   sets. The first set, named "done", contains the futures that completed
+   (finished or were cancelled) before the wait completed. The second set, named
+   "not_done", contains uncompleted futures.
 
    *timeout* can be used to control the maximum number of seconds to wait before
    returning. *timeout* can be an int or float. If *timeout* is not specified or
    ``None`` then there is no limit to the wait time.
 
-   *return_when* indicates when the method should return. It must be one of the
-   following constants:
+   *return_when* indicates when this function should return. It must be one of
+   the following constants:
 
       +-----------------------------+----------------------------------------+
       | Constant                    | Description                            |
@@ -329,11 +326,11 @@ Module Functions
 
 .. function:: as_completed(fs, timeout=None)
 
-   Returns an iterator over the :class:`Future` instances given by *fs* that
-   yields futures as they complete (finished or were cancelled). Any futures
-   that completed before :func:`as_completed()` was called will be yielded
-   first. The returned iterator raises a :exc:`TimeoutError` if
-   :meth:`__next__()` is called and the result isn't available after
-   *timeout* seconds from the original call to :func:`as_completed()`. *timeout*
-   can be an int or float. If *timeout* is not specified or ``None`` then there
-   is no limit to the wait time.
+   Returns an iterator over the :class:`Future` instances  (possibly created
+   by different :class:`Executor`s)given by *fs* that yields futures as they
+   complete (finished or were cancelled). Any futures that completed before
+   :func:`as_completed()` was called will be yielded first. The returned
+   iterator raises a :exc:`TimeoutError` if :meth:`__next__()` is called and
+   the result isn't available after *timeout* seconds from the original call
+   to :func:`as_completed()`. *timeout* can be an int or float. If *timeout*
+   is not specified or ``None`` then there is no limit to the wait time.

@@ -234,12 +234,12 @@ class WaitTests(unittest.TestCase):
 
             t = threading.Thread(target=wait_test)
             t.start()
-            finished, pending = futures.wait(
+            done, not_done = futures.wait(
                     [CANCELLED_FUTURE, future1, future2],
                      return_when=futures.FIRST_COMPLETED)
 
-            self.assertEquals(set([future1]), finished)
-            self.assertEquals(set([CANCELLED_FUTURE, future2]), pending)
+            self.assertEquals(set([future1]), done)
+            self.assertEquals(set([CANCELLED_FUTURE, future2]), not_done)
         finally:
             call2.set_can()
             call1.close()
@@ -651,26 +651,6 @@ class FutureTests(unittest.TestCase):
         f.add_done_callback(fn)
         self.assertTrue(was_cancelled)
 
-    def test_remove_done_callback(self):
-        was_called = False
-        def fn(callback_future):
-            nonlocal was_called
-            was_called = True
-
-        f = Future()
-        f.add_done_callback(fn)
-        f.remove_done_callback(fn)
-        self.assertFalse(was_called)
-
-    def test_remove_done_callback_twice(self):
-        def fn(callback_future):
-            pass
-
-        f = Future()
-        f.add_done_callback(fn)
-        f.remove_done_callback(fn)
-        self.assertRaises(KeyError, f.remove_done_callback, fn)
-        
     def test_repr(self):
         self.assertRegexpMatches(repr(PENDING_FUTURE),
                                  '<Future at 0x[0-9a-f]+ state=pending>')
