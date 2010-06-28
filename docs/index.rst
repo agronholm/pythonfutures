@@ -296,10 +296,10 @@ Module Functions
 .. function:: wait(fs, timeout=None, return_when=ALL_COMPLETED)
 
    Wait for the :class:`Future` instances (possibly created by different
-   :class:`Executor`s) given by *fs*  to complete. Returns a named 2-tuple of
-   sets. The first set, named "done", contains the futures that completed
-   (finished or were cancelled) before the wait completed. The second set, named
-   "not_done", contains uncompleted futures.
+   :class:`Executor` instances) given by *fs*  to complete. Returns a named
+   2-tuple of sets. The first set, named "done", contains the futures that
+   completed (finished or were cancelled) before the wait completed. The second
+   set, named "not_done", contains uncompleted futures.
 
    *timeout* can be used to control the maximum number of seconds to wait before
    returning. *timeout* can be an int or float. If *timeout* is not specified or
@@ -327,9 +327,9 @@ Module Functions
 .. function:: as_completed(fs, timeout=None)
 
    Returns an iterator over the :class:`Future` instances  (possibly created
-   by different :class:`Executor`s)given by *fs* that yields futures as they
-   complete (finished or were cancelled). Any futures that completed before
-   :func:`as_completed()` was called will be yielded first. The returned
+   by different :class:`Executor` instances) given by *fs* that yields futures
+   as they complete (finished or were cancelled). Any futures that completed
+   before :func:`as_completed()` was called will be yielded first. The returned
    iterator raises a :exc:`TimeoutError` if :meth:`__next__()` is called and
    the result isn't available after *timeout* seconds from the original call
    to :func:`as_completed()`. *timeout* can be an int or float. If *timeout*
