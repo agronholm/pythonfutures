@@ -265,8 +265,8 @@ The following :class:`Future` methods are meant for use in unit tests and
 
 .. method:: Future.set_running_or_notify_cancel()
 
-   Should be called by :class:`Executor` implementations before executing the
-   work associated with the :class:`Future`.
+   This method should only be called by :class:`Executor` implementations before
+   executing the work associated with the :class:`Future` and by unit tests.
 
    If the method returns `False` then the :class:`Future` was cancelled i.e.
    :meth:`Future.cancel` was called and returned `True`. Any threads waiting
@@ -285,10 +285,14 @@ The following :class:`Future` methods are meant for use in unit tests and
 
    Sets the result of the work associated with the :class:`Future` to *result*.
 
+   This method should only be used by Executor implementations and unit tests.
+
 .. method:: Future.set_exception(exception)
 
    Sets the result of the work associated with the :class:`Future` to the
    :class:`Exception` *exception*.
+
+   This method should only be used by Executor implementations and unit tests.
 
 Module Functions
 ----------------

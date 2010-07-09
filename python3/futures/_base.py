@@ -405,6 +405,8 @@ class Future(object):
     def set_running_or_notify_cancel(self):
         '''Mark the future as running or process any cancel notifications.
 
+        Should only be used by Executor implementations and unit tests.
+
         If the future has been cancelled (cancel() was called and returned
         True) then any threads waiting on the future completing (though calls
         to as_completed() or wait()) are notified and False is returned.
@@ -443,7 +445,7 @@ class Future(object):
     def set_result(self, result):
         """Sets the return value of work associated with the future.
         
-        Should only be called by Executor implementations.
+        Should only be used by Executor implementations and unit tests.
         """
         with self._condition:
             self._result = result
@@ -456,7 +458,7 @@ class Future(object):
     def set_exception(self, exception):
         """Sets the result of the future as being the given exception.
         
-        Should only be called by Executor implementations.
+        Should only be used by Executor implementations and unit tests.
         """
         with self._condition:
             self._exception = exception
