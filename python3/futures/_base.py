@@ -261,7 +261,10 @@ class Future(object):
 
     def _invoke_callbacks(self):
         for callback in self._done_callbacks:
-            callback(self)
+            try:
+                callback(self)
+            except Exception:
+                LOGGER.exception('exception calling callback for %r', self)
 
     def __repr__(self):
         with self._condition:

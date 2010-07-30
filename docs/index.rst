@@ -251,9 +251,14 @@ The :class:`Future` class encapulates the asynchronous execution of a callable.
 
    Attaches the callable *fn* to the future. *fn* will be called, with the
    future as its only argument, when the future is cancelled or finishes
-   running. Added callables are called in the order that they were added and are
-   always called in a thread belonging to the process that added them.
- 
+   running.
+
+   Added callables are called in the order that they were added and are always
+   called in a thread belonging to the process that added them. If the callable
+   raises an :exc:`Exception` then it will be logged and ignored. If the
+   callable raises another :exc:`BaseException` then the behavior is not
+   defined.
+
    If the future has already completed or been cancelled then *fn* will be
    called immediately.
 

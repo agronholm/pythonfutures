@@ -618,6 +618,26 @@ class FutureTests(unittest.TestCase):
         self.assertTrue(f.cancel())
         self.assertTrue(was_cancelled)
 
+    def test_done_callback_raises(self):
+        raising_was_called = False
+        fn_was_called = False
+
+        def raising_fn(callback_future):
+            nonlocal raising_was_called
+            raising_was_called = True
+            raise Exception('doh!')
+
+        def fn(callback_future):
+            nonlocal fn_was_called
+            fn_was_called = True
+
+        f = Future()
+        f.add_done_callback(raising_fn)
+        f.add_done_callback(fn)
+        f.set_result(5)
+        self.assertTrue(raising_was_called)
+        self.assertTrue(fn_was_called)
+
     def test_done_callback_already_successful(self):
         callback_result = None
         def fn(callback_future):
