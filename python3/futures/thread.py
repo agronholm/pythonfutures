@@ -1,11 +1,12 @@
-# Copyright 2009 Brian Quinlan. All Rights Reserved. See LICENSE file.
+# Copyright 2009 Brian Quinlan. All Rights Reserved.
+# Licensed to PSF under a Contributor Agreement.
 
 """Implements ThreadPoolExecutor."""
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 import atexit
-import futures._base
+from futures import _base
 import queue
 import threading
 import weakref
@@ -40,8 +41,8 @@ def _remove_dead_thread_references():
 
     Should be called periodically to prevent memory leaks in scenarios such as:
     >>> while True:
-    >>> ...    t = ThreadPoolExecutor(max_workers=5)
-    >>> ...    t.map(int, ['1', '2', '3', '4', '5'])
+    ...    t = ThreadPoolExecutor(max_workers=5)
+    ...    t.map(int, ['1', '2', '3', '4', '5'])
     """
     for thread_reference in set(_thread_references):
         if thread_reference() is None:
@@ -84,9 +85,9 @@ def _worker(executor_reference, work_queue):
             else:
                 work_item.run()
     except BaseException as e:
-        futures._base.LOGGER.critical('Exception in worker', exc_info=True)
+        _base.LOGGER.critical('Exception in worker', exc_info=True)
 
-class ThreadPoolExecutor(futures._base.Executor):
+class ThreadPoolExecutor(_base.Executor):
     def __init__(self, max_workers):
         """Initializes a new ThreadPoolExecutor instance.
 
@@ -107,13 +108,13 @@ class ThreadPoolExecutor(futures._base.Executor):
             if self._shutdown:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 
-            f = futures._base.Future()
-            w = _WorkItem(f, fn, args, kwargs)    
+            f = _base.Future()
+            w = _WorkItem(f, fn, args, kwargs)
 
             self._work_queue.put(w)
             self._adjust_thread_count()
             return f
-    submit.__doc__ = futures._base.Executor.submit.__doc__
+    submit.__doc__ = _base.Executor.submit.__doc__
 
     def _adjust_thread_count(self):
         # TODO(bquinlan): Should avoid creating new threads if there are more
@@ -132,5 +133,4 @@ class ThreadPoolExecutor(futures._base.Executor):
         if wait:
             for t in self._threads:
                 t.join()
-    shutdown.__doc__ = futures._base.Executor.shutdown.__doc__
-
+    shutdown.__doc__ = _base.Executor.shutdown.__doc__

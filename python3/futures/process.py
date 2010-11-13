@@ -1,4 +1,5 @@
-# Copyright 2009 Brian Quinlan. All Rights Reserved. See LICENSE file.
+# Copyright 2009 Brian Quinlan. All Rights Reserved.
+# Licensed to PSF under a Contributor Agreement.
 
 """Implements ProcessPoolExecutor.
 
@@ -45,7 +46,7 @@ Process #1..n:
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 import atexit
-import futures
+from futures import _base
 import queue
 import multiprocessing
 import threading
@@ -171,7 +172,7 @@ def _add_call_item_to_queue(pending_work_items,
             work_item = pending_work_items[work_id]
 
             if work_item.future.set_running_or_notify_cancel():
-                call_queue.put(_CallItem(work_id, 
+                call_queue.put(_CallItem(work_id,
                                          work_item.fn,
                                          work_item.args,
                                          work_item.kwargs),
@@ -243,7 +244,7 @@ def _queue_manangement_worker(executor_reference,
             else:
                 work_item.future.set_result(result_item.result)
 
-class ProcessPoolExecutor(futures._base.Executor):
+class ProcessPoolExecutor(_base.Executor):
     def __init__(self, max_workers=None):
         """Initializes a new ProcessPoolExecutor instance.
 
@@ -306,7 +307,7 @@ class ProcessPoolExecutor(futures._base.Executor):
             if self._shutdown_thread:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 
-            f = futures._base.Future()
+            f = _base.Future()
             w = _WorkItem(f, fn, args, kwargs)
 
             self._pending_work_items[self._queue_count] = w
@@ -316,7 +317,7 @@ class ProcessPoolExecutor(futures._base.Executor):
             self._start_queue_management_thread()
             self._adjust_process_count()
             return f
-    submit.__doc__ = futures._base.Executor.submit.__doc__
+    submit.__doc__ = _base.Executor.submit.__doc__
 
     def shutdown(self, wait=True):
         with self._shutdown_lock:
@@ -324,9 +325,13 @@ class ProcessPoolExecutor(futures._base.Executor):
         if wait:
             if self._queue_management_thread:
                 self._queue_management_thread.join()
-
-    shutdown.__doc__ = futures._base.Executor.shutdown.__doc__
+        # To reduce the risk of openning too many files, remove references to
+        # objects that use file descriptors.
+        self._queue_management_thread = None
+        self._call_queue = None
+        self._result_queue = None
+        self._shutdown_process_event = None
+        self._processes = None
+    shutdown.__doc__ = _base.Executor.shutdown.__doc__
 
 atexit.register(_python_exit)
-
-

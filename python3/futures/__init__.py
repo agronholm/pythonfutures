@@ -1,4 +1,5 @@
-# Copyright 2009 Brian Quinlan. All Rights Reserved. See LICENSE file.
+# Copyright 2009 Brian Quinlan. All Rights Reserved.
+# Licensed to PSF under a Contributor Agreement.
 
 """Execute computations asynchronously using threads or processes."""
 
@@ -12,7 +13,6 @@ from futures._base import (FIRST_COMPLETED,
                            Future,
                            Executor,
                            wait,
-                           as_completed) 
-from futures.thread import ThreadPoolExecutor
+                           as_completed)
 from futures.process import ProcessPoolExecutor
-
+from futures.thread import ThreadPoolExecutor

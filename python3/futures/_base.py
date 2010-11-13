@@ -1,4 +1,5 @@
-# Copyright 2009 Brian Quinlan. All Rights Reserved. See LICENSE file.
+# Copyright 2009 Brian Quinlan. All Rights Reserved.
+# Licensed to PSF under a Contributor Agreement.
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
@@ -16,8 +17,8 @@ ALL_COMPLETED = 'ALL_COMPLETED'
 PENDING = 'PENDING'
 RUNNING = 'RUNNING'
 # The future was cancelled by the user...
-CANCELLED = 'CANCELLED'                            
-# ...and ThreadEventSink.add_cancelled() was called by a worker.
+CANCELLED = 'CANCELLED'
+# ...and _Waiter.add_cancelled() was called by a worker.
 CANCELLED_AND_NOTIFIED = 'CANCELLED_AND_NOTIFIED'
 FINISHED = 'FINISHED'
 
@@ -39,11 +40,11 @@ _STATE_TO_DESCRIPTION_MAP = {
 
 # Logger for internal use by the futures package.
 LOGGER = logging.getLogger("futures")
-_handler = logging.StreamHandler()
-LOGGER.addHandler(_handler)
-del _handler
+STDERR_HANDLER = logging.StreamHandler()
+LOGGER.addHandler(STDERR_HANDLER)
 
 class Error(Exception):
+    """Base class for all future-related exceptions."""
     pass
 
 class CancelledError(Error):
@@ -68,7 +69,7 @@ class _Waiter(object):
 
     def add_cancelled(self, future):
         self.finished_futures.append(future)
-    
+
 class _FirstCompletedWaiter(_Waiter):
     """Used by wait(return_when=FIRST_COMPLETED) and as_completed()."""
 
@@ -134,7 +135,7 @@ def _create_and_install_waiters(fs, return_when):
                 f._state not in [CANCELLED_AND_NOTIFIED, FINISHED] for f in fs)
 
         if return_when == FIRST_EXCEPTION:
-           waiter = _AllCompletedWaiter(pending_count, stop_on_exception=True)
+            waiter = _AllCompletedWaiter(pending_count, stop_on_exception=True)
         elif return_when == ALL_COMPLETED:
             waiter = _AllCompletedWaiter(pending_count, stop_on_exception=False)
         else:
@@ -147,7 +148,7 @@ def _create_and_install_waiters(fs, return_when):
 
 def as_completed(fs, timeout=None):
     """An iterator over the given futures that yields each as it completes.
-    
+
     Args:
         fs: The sequence of Futures (possibly created by different Executors) to
             iterate over.
@@ -406,7 +407,7 @@ class Future(object):
 
     # The following methods should only be used by Executors and in tests.
     def set_running_or_notify_cancel(self):
-        '''Mark the future as running or process any cancel notifications.
+        """Mark the future as running or process any cancel notifications.
 
         Should only be used by Executor implementations and unit tests.
 
@@ -427,13 +428,13 @@ class Future(object):
         Raises:
             RuntimeError: if this method was already called or if set_result()
                 or set_exception() was called.
-        '''
+        """
         with self._condition:
             if self._state == CANCELLED:
                 self._state = CANCELLED_AND_NOTIFIED
                 for waiter in self._waiters:
                     waiter.add_cancelled(self)
-                # self._condition.notify_all() is not necessary because 
+                # self._condition.notify_all() is not necessary because
                 # self.cancel() triggers a notification.
                 return False
             elif self._state == PENDING:
@@ -447,7 +448,7 @@ class Future(object):
 
     def set_result(self, result):
         """Sets the return value of work associated with the future.
-        
+
         Should only be used by Executor implementations and unit tests.
         """
         with self._condition:
@@ -460,7 +461,7 @@ class Future(object):
 
     def set_exception(self, exception):
         """Sets the result of the future as being the given exception.
-        
+
         Should only be used by Executor implementations and unit tests.
         """
         with self._condition:
@@ -519,7 +520,7 @@ class Executor(object):
                 future.cancel()
 
     def shutdown(self, wait=True):
-        """Clean-up the resources associated with the Executor. 
+        """Clean-up the resources associated with the Executor.
 
         It is safe to call this method several times. Otherwise, no other
         methods can be called after this one.
@@ -537,4 +538,3 @@ class Executor(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.shutdown(wait=True)
         return False
-

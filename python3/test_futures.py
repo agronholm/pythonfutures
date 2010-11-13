@@ -1,20 +1,21 @@
-import test.support
-
-import unittest
-import threading
-import time
+import io
+import logging
 import multiprocessing
 import sys
+import threading
+import test.support
+import time
+import unittest
 
 if sys.platform.startswith('win'):
     import ctypes
     import ctypes.wintypes
 
-import futures
-import futures._base
-from futures._base import (
-    PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future, wait)
-import futures.process
+from concurrent import futures
+from concurrent.futures._base import (
+    PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future,
+    LOGGER, STDERR_HANDLER, wait)
+import concurrent.futures.process
 
 def create_future(state=PENDING, exception=None, result=None):
     f = Future()
@@ -75,7 +76,7 @@ class Call(object):
             assert r != 0
         else:
             self.CALL_LOCKS[handle].set()
-        
+
     def __init__(self, manual_finish=False, result=42):
         self._called_event = self._create_event()
         self._can_finish = self._create_event()
@@ -98,6 +99,7 @@ class Call(object):
         return self._result
 
     def close(self):
+        self.set_can()
         if sys.platform.startswith('win'):
             ctypes.windll.kernel32.CloseHandle(self._called_event)
             ctypes.windll.kernel32.CloseHandle(self._can_finish)
@@ -141,7 +143,7 @@ class ExecutorShutdownTest(unittest.TestCase):
             call1.wait_on_called()
             call2.wait_on_called()
             call3.wait_on_called()
-    
+
             call1.set_can()
             call2.set_can()
             call3.set_can()
@@ -192,10 +194,10 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
     def test_processes_terminate(self):
         self._start_some_futures()
         self.assertEqual(len(self.executor._processes), 5)
+        processes = self.executor._processes
         self.executor.shutdown()
 
-        self.executor._queue_management_thread.join()
-        for p in self.executor._processes:
+        for p in processes:
             p.join()
 
     def test_context_manager_shutdown(self):
@@ -204,7 +206,6 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
             self.assertEqual(list(e.map(abs, range(-5, 5))),
                              [5, 4, 3, 2, 1, 0, 1, 2, 3, 4])
 
-        executor._queue_management_thread.join()
         for p in self.executor._processes:
             p.join()
 
@@ -241,7 +242,6 @@ class WaitTests(unittest.TestCase):
             self.assertEquals(set([future1]), done)
             self.assertEquals(set([CANCELLED_FUTURE, future2]), not_done)
         finally:
-            call2.set_can()
             call1.close()
             call2.close()
 
@@ -257,7 +257,6 @@ class WaitTests(unittest.TestCase):
             self.assertEquals(set([SUCCESSFUL_FUTURE]), finished)
             self.assertEquals(set([future1]), pending)
         finally:
-            call1.set_can()
             call1.close()
 
     def test_first_exception(self):
@@ -283,10 +282,7 @@ class WaitTests(unittest.TestCase):
 
             self.assertEquals(set([future1, future2]), finished)
             self.assertEquals(set([future3]), pending)
-
-
         finally:
-            call3.set_can()
             call1.close()
             call2.close()
             call3.close()
@@ -319,7 +315,6 @@ class WaitTests(unittest.TestCase):
 
 
         finally:
-            call2.set_can()
             call1.close()
             call2.close()
 
@@ -335,7 +330,6 @@ class WaitTests(unittest.TestCase):
             self.assertEquals(set([EXCEPTION_FUTURE]), finished)
             self.assertEquals(set([future1]), pending)
         finally:
-            call1.set_can()
             call1.close()
 
     def test_all_completed(self):
@@ -380,7 +374,7 @@ class WaitTests(unittest.TestCase):
                 1,
                'this test assumes that future4 will be cancelled before it is '
                'queued to run - which might not be the case if '
-               'ProcessPoolExecutor is too aggresive in scheduling futures') 
+               'ProcessPoolExecutor is too aggresive in scheduling futures')
         call1 = Call(manual_finish=True)
         call2 = Call(manual_finish=True)
         call3 = Call(manual_finish=True)
@@ -440,7 +434,6 @@ class WaitTests(unittest.TestCase):
 
 
         finally:
-            call2.set_can()
             call1.close()
             call2.close()
 
@@ -488,7 +481,6 @@ class AsCompletedTests(unittest.TestCase):
                      future1, future2]),
                     completed)
         finally:
-            call2.set_can()
             call1.close()
             call2.close()
 
@@ -506,14 +498,14 @@ class AsCompletedTests(unittest.TestCase):
                         timeout=0):
                     completed_futures.add(future)
             except futures.TimeoutError:
-                pass 
+                pass
 
             self.assertEquals(set([CANCELLED_AND_NOTIFIED_FUTURE,
                                    EXCEPTION_FUTURE,
                                    SUCCESSFUL_FUTURE]),
                               completed_futures)
         finally:
-            call1.set_can()
+            call1.close()
 
 class ThreadPoolAsCompletedTests(AsCompletedTests):
     def setUp(self):
@@ -539,7 +531,7 @@ class ExecutorTest(unittest.TestCase):
     def test_submit_keyword(self):
         future = self.executor.submit(mul, 2, y=8)
         self.assertEquals(16, future.result())
-    
+
     def test_map(self):
         self.assertEqual(
                 list(self.executor.map(pow, range(10), range(10))),
@@ -565,7 +557,6 @@ class ExecutorTest(unittest.TestCase):
             else:
                 self.fail('expected TimeoutError')
         finally:
-            timeout_call.set_can()
             timeout_call.close()
 
         self.assertEquals([42, 42], results)
@@ -619,24 +610,33 @@ class FutureTests(unittest.TestCase):
         self.assertTrue(was_cancelled)
 
     def test_done_callback_raises(self):
-        raising_was_called = False
-        fn_was_called = False
+        LOGGER.removeHandler(STDERR_HANDLER)
+        logging_stream = io.StringIO()
+        handler = logging.StreamHandler(logging_stream)
+        LOGGER.addHandler(handler)
+        try:
+            raising_was_called = False
+            fn_was_called = False
 
-        def raising_fn(callback_future):
-            nonlocal raising_was_called
-            raising_was_called = True
-            raise Exception('doh!')
+            def raising_fn(callback_future):
+                nonlocal raising_was_called
+                raising_was_called = True
+                raise Exception('doh!')
 
-        def fn(callback_future):
-            nonlocal fn_was_called
-            fn_was_called = True
+            def fn(callback_future):
+                nonlocal fn_was_called
+                fn_was_called = True
 
-        f = Future()
-        f.add_done_callback(raising_fn)
-        f.add_done_callback(fn)
-        f.set_result(5)
-        self.assertTrue(raising_was_called)
-        self.assertTrue(fn_was_called)
+            f = Future()
+            f.add_done_callback(raising_fn)
+            f.add_done_callback(fn)
+            f.set_result(5)
+            self.assertTrue(raising_was_called)
+            self.assertTrue(fn_was_called)
+            self.assertIn('Exception: doh!', logging_stream.getvalue())
+        finally:
+            LOGGER.removeHandler(handler)
+            LOGGER.addHandler(STDERR_HANDLER)
 
     def test_done_callback_already_successful(self):
         callback_result = None
