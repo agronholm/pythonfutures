@@ -25,29 +25,23 @@ def sequential():
     return list(map(is_prime, PRIMES))
 
 def with_process_pool_executor():
-    executor = futures.ProcessPoolExecutor(10)
-    try:
+    with futures.ProcessPoolExecutor(10) as executor:
         return list(executor.map(is_prime, PRIMES))
-    finally:
-        executor.shutdown()
 
 def with_thread_pool_executor():
-    executor = futures.ThreadPoolExecutor(10)
-    try:
+    with futures.ThreadPoolExecutor(10) as executor:
         return list(executor.map(is_prime, PRIMES))
-    finally:
-        executor.shutdown()
 
 def main():
     for name, fn in [('sequential', sequential),
                      ('processes', with_process_pool_executor),
                      ('threads', with_thread_pool_executor)]:
-        print '%s: ' % name.ljust(12),
-
+        print name.ljust(12),
         start = time.time()
         if fn() != [True] * len(PRIMES):
             print 'failed'
         else:
             print '%.2f seconds' % (time.time() - start)
 
-main()
+if __name__ == '__main__':
+    main()
