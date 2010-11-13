@@ -43,4 +43,5 @@ def main():
         else:
             print('%.2f seconds' % (time.time() - start))
 
-main()
+if __name__ == '__main__':
+    main()

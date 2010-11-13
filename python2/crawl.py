@@ -19,26 +19,29 @@ URLS = ['http://www.google.com/',
         'http://www.youtube.com/',
         'http://www.blogger.com/']
 
-def load_url(url):
-    return urllib2.urlopen(url).read()
+def load_url(url, timeout):
+    return urllib2.urlopen(url, timeout=timeout).read()
 
-def download_urls_sequential(urls):
+def download_urls_sequential(urls, timeout=60):
     url_to_content = {}
     for url in urls:
         try:
-            url_to_content[url] = load_url(url)
+            url_to_content[url] = load_url(url, timeout=timeout)
         except:
             pass
     return url_to_content
 
-def download_urls_with_executor(urls, executor):
+def download_urls_with_executor(urls, executor, timeout=60):
     try:
         url_to_content = {}
-        fs = executor.run_to_futures(
-                (functools.partial(load_url, url) for url in urls))
-        for future in fs.successful_futures():
-            url = urls[future.index]
-            url_to_content[url] = future.result()
+        future_to_url = dict((executor.submit(load_url, url, timeout), url)
+                             for url in urls)
+
+        for future in futures.as_completed(future_to_url):
+            try:
+                url_to_content[future_to_url[future]] = future.result()
+            except:
+                pass
         return url_to_content
     finally:
         executor.shutdown()
@@ -46,19 +49,20 @@ def download_urls_with_executor(urls, executor):
 def main():
     for name, fn in [('sequential',
                       functools.partial(download_urls_sequential, URLS)),
-                     ('threads',
-                      functools.partial(download_urls_with_executor,
-                                        URLS,
-                                        futures.ThreadPoolExecutor(10))),
                      ('processes',
                       functools.partial(download_urls_with_executor,
                                         URLS,
+                                        futures.ProcessPoolExecutor(10))),
+                     ('threads',
+                      functools.partial(download_urls_with_executor,
+                                        URLS,
                                         futures.ThreadPoolExecutor(10)))]:
-        print '%s: ' % name.ljust(12),
+        print name.ljust(12),
         start = time.time()
         url_map = fn()
         print '%.2f seconds (%d of %d downloaded)' % (time.time() - start,
-                                                     len(url_map),
-                                                     len(URLS))
+                                                      len(url_map),
+                                                      len(URLS))
 
-main()
+if __name__ == '__main__':
+    main()

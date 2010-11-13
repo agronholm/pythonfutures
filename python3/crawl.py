@@ -34,12 +34,14 @@ def download_urls_sequential(urls, timeout=60):
 def download_urls_with_executor(urls, executor, timeout=60):
     try:
         url_to_content = {}
-        fs = executor.run_to_futures(
-                (functools.partial(load_url, url, timeout) for url in urls),
-                timeout=timeout)
-        for future in fs.successful_futures():
-            url = urls[future.index]
-            url_to_content[url] = future.result()
+        future_to_url = dict((executor.submit(load_url, url, timeout), url)
+                             for url in urls)
+
+        for future in futures.as_completed(future_to_url):
+            try:
+                url_to_content[future_to_url[future]] = future.result()
+            except:
+                pass
         return url_to_content
     finally:
         executor.shutdown()
@@ -47,7 +49,7 @@ def download_urls_with_executor(urls, executor, timeout=60):
 def main():
     for name, fn in [('sequential',
                       functools.partial(download_urls_sequential, URLS)),
-                    ('processes',
+                     ('processes',
                       functools.partial(download_urls_with_executor,
                                         URLS,
                                         futures.ProcessPoolExecutor(10))),
@@ -62,4 +64,5 @@ def main():
                                                       len(url_map),
                                                       len(URLS)))
 
-main()
+if __name__ == '__main__':
+    main()
