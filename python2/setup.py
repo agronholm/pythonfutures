@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 from distutils.core import setup
 
-setup(name='futures3',
+setup(name='futures',
       version='1.0',
-      description='Java-style futures implementation in Python 3.x',
+      description='Java-style futures implementation in Python 2.x',
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',
       url='http://code.google.com/p/pythonfutures',
@@ -14,5 +14,5 @@ setup(name='futures3',
       classifiers=['License :: OSI Approved :: BSD License',
                    'Development Status :: 5 - Production/Stable',
                    'Intended Audience :: Developers',
-                   'Programming Language :: Python :: 3']
+                   'Programming Language :: Python :: 2']
       )
