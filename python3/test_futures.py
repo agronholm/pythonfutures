@@ -11,11 +11,11 @@ if sys.platform.startswith('win'):
     import ctypes
     import ctypes.wintypes
 
-from concurrent import futures
-from concurrent.futures._base import (
+import futures
+from futures._base import (
     PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future,
     LOGGER, STDERR_HANDLER, wait)
-import concurrent.futures.process
+import futures.process
 
 def create_future(state=PENDING, exception=None, result=None):
     f = Future()
