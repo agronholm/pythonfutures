@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='futures',
-      version='1.0',
+      version='2.0',
       description='Java-style futures implementation in Python 2.x',
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',
