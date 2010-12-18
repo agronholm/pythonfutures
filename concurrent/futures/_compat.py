@@ -1,12 +1,6 @@
-import sys
-
-#if sys.version_info >= (2, 6):
-#    from collections import namedtuple
-#else:
-## Copied from Python 2.6 standard library
 from keyword import iskeyword as _iskeyword
 from operator import itemgetter as _itemgetter
-_sys = sys
+import sys as _sys
 
 def namedtuple(typename, field_names, verbose=False):
     """Returns a new subclass of tuple with named fields.
