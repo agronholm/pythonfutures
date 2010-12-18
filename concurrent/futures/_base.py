@@ -1,13 +1,18 @@
 # Copyright 2009 Brian Quinlan. All Rights Reserved.
 # Licensed to PSF under a Contributor Agreement.
 
-__author__ = 'Brian Quinlan (brian@sweetapp.com)'
-
-import collections
+from __future__ import with_statement
 import functools
 import logging
 import threading
 import time
+
+try:
+    from collections import namedtuple
+except ImportError:
+    from concurrent.futures._compat import namedtuple
+
+__author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 FIRST_COMPLETED = 'FIRST_COMPLETED'
 FIRST_EXCEPTION = 'FIRST_EXCEPTION'
@@ -40,7 +45,7 @@ _STATE_TO_DESCRIPTION_MAP = {
 }
 
 # Logger for internal use by the futures package.
-LOGGER = logging.getLogger("futures")
+LOGGER = logging.getLogger("concurrent.futures")
 STDERR_HANDLER = logging.StreamHandler()
 LOGGER.addHandler(STDERR_HANDLER)
 
@@ -97,15 +102,15 @@ class _FirstCompletedWaiter(_Waiter):
     """Used by wait(return_when=FIRST_COMPLETED)."""
 
     def add_result(self, future):
-        super().add_result(future)
+        super(_FirstCompletedWaiter, self).add_result(future)
         self.event.set()
 
     def add_exception(self, future):
-        super().add_exception(future)
+        super(_FirstCompletedWaiter, self).add_exception(future)
         self.event.set()
 
     def add_cancelled(self, future):
-        super().add_cancelled(future)
+        super(_FirstCompletedWaiter, self).add_cancelled(future)
         self.event.set()
 
 class _AllCompletedWaiter(_Waiter):
@@ -114,7 +119,7 @@ class _AllCompletedWaiter(_Waiter):
     def __init__(self, num_pending_calls, stop_on_exception):
         self.num_pending_calls = num_pending_calls
         self.stop_on_exception = stop_on_exception
-        super().__init__()
+        super(_AllCompletedWaiter, self).__init__()
 
     def _decrement_pending_calls(self):
         self.num_pending_calls -= 1
@@ -122,18 +127,18 @@ class _AllCompletedWaiter(_Waiter):
             self.event.set()
 
     def add_result(self, future):
-        super().add_result(future)
+        super(_AllCompletedWaiter, self).add_result(future)
         self._decrement_pending_calls()
 
     def add_exception(self, future):
-        super().add_exception(future)
+        super(_AllCompletedWaiter, self).add_exception(future)
         if self.stop_on_exception:
             self.event.set()
         else:
             self._decrement_pending_calls()
 
     def add_cancelled(self, future):
-        super().add_cancelled(future)
+        super(_AllCompletedWaiter, self).add_cancelled(future)
         self._decrement_pending_calls()
 
 class _AcquireFutures(object):
@@ -227,7 +232,7 @@ def as_completed(fs, timeout=None):
         for f in fs:
             f._waiters.remove(waiter)
 
-DoneAndNotDoneFutures = collections.namedtuple(
+DoneAndNotDoneFutures = namedtuple(
         'DoneAndNotDoneFutures', 'done not_done')
 def wait(fs, timeout=None, return_when=ALL_COMPLETED):
     """Wait for the futures in the given sequence to complete.
@@ -515,7 +520,7 @@ class Executor(object):
         """
         raise NotImplementedError()
 
-    def map(self, fn, *iterables, timeout=None):
+    def map(self, fn, *iterables, **kwargs):
         """Returns a iterator equivalent to map(fn, iter).
 
         Args:
@@ -533,6 +538,7 @@ class Executor(object):
                 before the given timeout.
             Exception: If fn(*args) raises for any values.
         """
+        timeout = kwargs.get('timeout')
         if timeout is not None:
             end_time = timeout + time.time()
 

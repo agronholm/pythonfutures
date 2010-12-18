@@ -1,11 +1,17 @@
 """Compare the speed of downloading URLs sequentially vs. using futures."""
 
-import datetime
 import functools
-import futures.thread
 import time
 import timeit
-import urllib.request
+import sys
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
+
+from concurrent.futures import (as_completed, ThreadPoolExecutor,
+                                ProcessPoolExecutor)
 
 URLS = ['http://www.google.com/',
         'http://www.apple.com/',
@@ -20,7 +26,8 @@ URLS = ['http://www.google.com/',
         'http://www.blogger.com/']
 
 def load_url(url, timeout):
-    return urllib.request.urlopen(url, timeout=timeout).read()
+    kwargs = {'timeout': timeout} if sys.version_info >= (2, 6) else {}
+    return urlopen(url, **kwargs).read()
 
 def download_urls_sequential(urls, timeout=60):
     url_to_content = {}
@@ -37,7 +44,7 @@ def download_urls_with_executor(urls, executor, timeout=60):
         future_to_url = dict((executor.submit(load_url, url, timeout), url)
                              for url in urls)
 
-        for future in futures.as_completed(future_to_url):
+        for future in as_completed(future_to_url):
             try:
                 url_to_content[future_to_url[future]] = future.result()
             except:
@@ -52,17 +59,16 @@ def main():
                      ('processes',
                       functools.partial(download_urls_with_executor,
                                         URLS,
-                                        futures.ProcessPoolExecutor(10))),
+                                        ProcessPoolExecutor(10))),
                      ('threads',
                       functools.partial(download_urls_with_executor,
                                         URLS,
-                                        futures.ThreadPoolExecutor(10)))]:
-        print('%s: ' % name.ljust(12), end='')
+                                        ThreadPoolExecutor(10)))]:
+        sys.stdout.write('%s: ' % name.ljust(12))
         start = time.time()
         url_map = fn()
-        print('%.2f seconds (%d of %d downloaded)' % (time.time() - start,
-                                                      len(url_map),
-                                                      len(URLS)))
+        sys.stdout.write('%.2f seconds (%d of %d downloaded)\n' %
+                         (time.time() - start, len(url_map), len(URLS)))
 
 if __name__ == '__main__':
     main()

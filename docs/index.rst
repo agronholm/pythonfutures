@@ -1,11 +1,11 @@
-:mod:`futures` --- Asynchronous computation
+:mod:`concurrent.futures` --- Asynchronous computation
 ===========================================
 
-.. module:: futures
+.. module:: concurrent.futures
    :synopsis: Execute computations asynchronously using threads or processes. 
 
-The :mod:`futures` module provides a high-level interface for asynchronously
-executing callables.
+The :mod:`concurrent.futures` module provides a high-level interface for
+asynchronously executing callables.
 
 The asynchronous execution can be be performed by threads using
 :class:`ThreadPoolExecutor` or seperate processes using
@@ -120,7 +120,7 @@ ThreadPoolExecutor Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 ::
 
-    import futures
+    from concurrent import futures
     import urllib.request
     
     URLS = ['http://www.foxnews.com/',

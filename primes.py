@@ -1,6 +1,9 @@
-import futures
+from __future__ import with_statement
 import math
 import time
+import sys
+
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 PRIMES = [
     112272535095293,
@@ -25,23 +28,23 @@ def sequential():
     return list(map(is_prime, PRIMES))
 
 def with_process_pool_executor():
-    with futures.ProcessPoolExecutor(10) as executor:
+    with ProcessPoolExecutor(10) as executor:
         return list(executor.map(is_prime, PRIMES))
 
 def with_thread_pool_executor():
-    with futures.ThreadPoolExecutor(10) as executor:
+    with ThreadPoolExecutor(10) as executor:
         return list(executor.map(is_prime, PRIMES))
 
 def main():
     for name, fn in [('sequential', sequential),
                      ('processes', with_process_pool_executor),
                      ('threads', with_thread_pool_executor)]:
-        print('%s: ' % name.ljust(12), end='')
+        sys.stdout.write('%s: ' % name.ljust(12))
         start = time.time()
         if fn() != [True] * len(PRIMES):
-            print('failed')
+            sys.stdout.write('failed\n')
         else:
-            print('%.2f seconds' % (time.time() - start))
+            sys.stdout.write('%.2f seconds\n' % (time.time() - start))
 
 if __name__ == '__main__':
     main()

@@ -1,22 +1,33 @@
+from __future__ import with_statement
 import logging
 import multiprocessing
 import re
-import StringIO
 import sys
 import threading
-from test import test_support
 import time
 import unittest
+
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
+try:
+    from test.test_support import run_unittest
+except ImportError:
+    from test.support import run_unittest
+
+if sys.version_info < (3, 0):
+    next = lambda x: x.next()
 
 if sys.platform.startswith('win'):
     import ctypes
     import ctypes.wintypes
 
-import futures
-from futures._base import (
+from concurrent import futures
+from concurrent.futures._base import (
     PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future,
-    LOGGER, STDERR_HANDLER, wait)
-import futures.process
+    LOGGER, STDERR_HANDLER)
 
 def create_future(state=PENDING, exception=None, result=None):
     f = Future()
@@ -539,9 +550,9 @@ class ExecutorTest(unittest.TestCase):
 
     def test_map_exception(self):
         i = self.executor.map(divmod, [1, 1, 1, 1], [2, 3, 0, 5])
-        self.assertEqual(i.next(), (0, 1))
-        self.assertEqual(i.next(), (0, 1))
-        self.assertRaises(ZeroDivisionError, i.next)
+        self.assertEqual(next(i), (0, 1))
+        self.assertEqual(next(i), (0, 1))
+        self.assertRaises(ZeroDivisionError, next, i)
 
     def test_map_timeout(self):
         results = []
@@ -608,7 +619,7 @@ class FutureTests(unittest.TestCase):
 
     def test_done_callback_raises(self):
         LOGGER.removeHandler(STDERR_HANDLER)
-        logging_stream = StringIO.StringIO()
+        logging_stream = StringIO()
         handler = logging.StreamHandler(logging_stream)
         LOGGER.addHandler(handler)
         try:
@@ -678,7 +689,6 @@ class FutureTests(unittest.TestCase):
         self.assertTrue(re.match(
                 '<Future at 0x[0-9a-f]+L? state=finished returned int>',
                 repr(SUCCESSFUL_FUTURE)))
-
 
     def test_cancel(self):
         f1 = create_future(state=PENDING)
@@ -797,15 +807,15 @@ class FutureTests(unittest.TestCase):
         self.assertTrue(isinstance(f1.exception(timeout=5), IOError))
 
 def test_main():
-    test_support.run_unittest(ProcessPoolExecutorTest,
-                              ThreadPoolExecutorTest,
-                              ProcessPoolWaitTests,
-                              ThreadPoolWaitTests,
-                              ProcessPoolAsCompletedTests,
-                              ThreadPoolAsCompletedTests,
-                              FutureTests,
-                              ProcessPoolShutdownTest,
-                              ThreadPoolShutdownTest)
+    run_unittest(ProcessPoolExecutorTest,
+                 ThreadPoolExecutorTest,
+                 ProcessPoolWaitTests,
+                 ThreadPoolWaitTests,
+                 ProcessPoolAsCompletedTests,
+                 ThreadPoolAsCompletedTests,
+                 FutureTests,
+                 ProcessPoolShutdownTest,
+                 ThreadPoolShutdownTest)
 
 if __name__ == "__main__":
     test_main()

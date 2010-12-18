@@ -3,13 +3,20 @@
 
 """Implements ThreadPoolExecutor."""
 
-__author__ = 'Brian Quinlan (brian@sweetapp.com)'
-
+from __future__ import with_statement
 import atexit
-import _base
-import Queue
 import threading
 import weakref
+import sys
+
+from concurrent.futures import _base
+
+try:
+    import queue
+except ImportError:
+    import Queue as queue
+
+__author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 # Workers are created as daemon threads. This is done to allow the interpreter
 # to exit when there are still idle threads in a ThreadPoolExecutor's thread
@@ -63,7 +70,8 @@ class _WorkItem(object):
 
         try:
             result = self.fn(*self.args, **self.kwargs)
-        except BaseException as e:
+        except BaseException:
+            e = sys.exc_info()[1]
             self.future.set_exception(e)
         else:
             self.future.set_result(result)
@@ -73,7 +81,7 @@ def _worker(executor_reference, work_queue):
         while True:
             try:
                 work_item = work_queue.get(block=True, timeout=0.1)
-            except Queue.Empty:
+            except queue.Empty:
                 executor = executor_reference()
                 # Exit if:
                 #   - The interpreter is shutting down OR
@@ -84,7 +92,7 @@ def _worker(executor_reference, work_queue):
                 del executor
             else:
                 work_item.run()
-    except BaseException as e:
+    except BaseException:
         _base.LOGGER.critical('Exception in worker', exc_info=True)
 
 class ThreadPoolExecutor(_base.Executor):
@@ -98,7 +106,7 @@ class ThreadPoolExecutor(_base.Executor):
         _remove_dead_thread_references()
 
         self._max_workers = max_workers
-        self._work_queue = Queue.Queue()
+        self._work_queue = queue.Queue()
         self._threads = set()
         self._shutdown = False
         self._shutdown_lock = threading.Lock()

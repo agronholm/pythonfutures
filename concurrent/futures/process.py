@@ -43,14 +43,21 @@ Process #1..n:
   _ResultItems in "Request Q"
 """
 
-__author__ = 'Brian Quinlan (brian@sweetapp.com)'
-
+from __future__ import with_statement
 import atexit
-from futures import _base
-import queue
 import multiprocessing
 import threading
 import weakref
+import sys
+
+from concurrent.futures import _base
+
+try:
+    import queue
+except ImportError:
+    import Queue as queue
+
+__author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 # Workers are created as daemon threads and processes. This is done to allow the
 # interpreter to exit when there are still idle processes in a
@@ -137,7 +144,8 @@ def _process_worker(call_queue, result_queue, shutdown):
         else:
             try:
                 r = call_item.fn(*call_item.args, **call_item.kwargs)
-            except BaseException as e:
+            except BaseException:
+                e = sys.exc_info()[1]
                 result_queue.put(_ResultItem(call_item.work_id,
                                              exception=e))
             else:
