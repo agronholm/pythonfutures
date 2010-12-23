@@ -1,5 +1,5 @@
 :mod:`concurrent.futures` --- Asynchronous computation
-===========================================
+======================================================
 
 .. module:: concurrent.futures
    :synopsis: Execute computations asynchronously using threads or processes. 
