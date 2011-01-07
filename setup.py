@@ -6,7 +6,7 @@ try:
     from setuptools import setup
     if sys.version_info < (2, 6):
         extras['install_requires'] = ['multiprocessing']
-except:
+except ImportError:
     from distutils.core import setup
 
 setup(name='futures',
@@ -18,7 +18,7 @@ setup(name='futures',
       maintainer_email='alex.gronholm+pypi@nextday.fi',
       url='http://code.google.com/p/pythonfutures',
       download_url='http://pypi.python.org/pypi/futures/',
-      packages=['futures', 'concurrent.futures'],
+      packages=['futures', 'concurrent', 'concurrent.futures'],
       license='BSD',
       classifiers=['License :: OSI Approved :: BSD License',
                    'Development Status :: 5 - Production/Stable',
