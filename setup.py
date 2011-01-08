@@ -4,13 +4,14 @@ import sys
 extras = {}
 try:
     from setuptools import setup
+    extras['zip_safe'] = False
     if sys.version_info < (2, 6):
         extras['install_requires'] = ['multiprocessing']
 except ImportError:
     from distutils.core import setup
 
 setup(name='futures',
-      version='2.1.1',
+      version='2.1.2',
       description='Backport of the concurrent.futures package from Python 3.2',
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',
