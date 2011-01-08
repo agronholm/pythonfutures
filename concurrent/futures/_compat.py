@@ -2,7 +2,8 @@ from keyword import iskeyword as _iskeyword
 from operator import itemgetter as _itemgetter
 import sys as _sys
 
-def namedtuple(typename, field_names, verbose=False):
+
+def namedtuple(typename, field_names):
     """Returns a new subclass of tuple with named fields.
 
     >>> Point = namedtuple('Point', 'x y')
@@ -79,16 +80,15 @@ def namedtuple(typename, field_names, verbose=False):
             return tuple(self) \n\n''' % locals()
     for i, name in enumerate(field_names):
         template += '        %s = _property(_itemgetter(%d))\n' % (name, i)
-    if verbose:
-        print template
 
     # Execute the template string in a temporary namespace and
     # support tracing utilities by setting a value for frame.f_globals['__name__']
     namespace = dict(_itemgetter=_itemgetter, __name__='namedtuple_%s' % typename,
                      _property=property, _tuple=tuple)
     try:
-        exec template in namespace
-    except SyntaxError, e:
+        exec(template, namespace)
+    except SyntaxError:
+        e = _sys.exc_info()[1]
         raise SyntaxError(e.message + ':\n' + template)
     result = namespace[typename]
 
