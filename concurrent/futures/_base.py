@@ -122,8 +122,7 @@ class _AllCompletedWaiter(_Waiter):
         super(_AllCompletedWaiter, self).__init__()
 
     def _decrement_pending_calls(self):
-        self.num_pending_calls -= 1
-        if not self.num_pending_calls:
+        if self.num_pending_calls == len(self.finished_futures):
             self.event.set()
 
     def add_result(self, future):
