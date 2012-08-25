@@ -135,12 +135,14 @@ class MapCall(Call):
         return self._result
 
 class ExecutorShutdownTest(unittest.TestCase):
+    def setUp(self):
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
+
     def test_run_after_shutdown(self):
         self.executor.shutdown()
         self.assertRaises(RuntimeError,
                           self.executor.submit,
                           pow, 2, 5)
-
 
     def _start_some_futures(self):
         call1 = Call(manual_finish=True)
@@ -233,6 +235,9 @@ class ProcessPoolShutdownTest(ExecutorShutdownTest):
             p.join()
 
 class WaitTests(unittest.TestCase):
+    def setUp(self):
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
+
     def test_first_completed(self):
         def wait_test():
             while not future1._waiters:
@@ -464,6 +469,9 @@ class ProcessPoolWaitTests(WaitTests):
         self.executor.shutdown(wait=True)
 
 class AsCompletedTests(unittest.TestCase):
+    def setUp(self):
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
+
     # TODO(brian@sweetapp.com): Should have a test with a non-zero timeout.
     def test_no_timeout(self):
         def wait_test():
@@ -533,6 +541,9 @@ class ProcessPoolAsCompletedTests(AsCompletedTests):
         self.executor.shutdown(wait=True)
 
 class ExecutorTest(unittest.TestCase):
+    def setUp(self):
+        self.executor = futures.ProcessPoolExecutor(max_workers=1)
+
     # Executor.shutdown() and context manager usage is tested by
     # ExecutorShutdownTest.
     def test_submit(self):
