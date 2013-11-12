@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 import sys
+import os
 
 extras = {}
 try:
     from setuptools import setup
     extras['zip_safe'] = False
-    if sys.version_info < (2, 6):
+    if sys.version_info < (2, 6) and os.name != 'java':
         extras['install_requires'] = ['multiprocessing']
 except ImportError:
     from distutils.core import setup
 
 setup(name='futures',
-      version='2.1.4',
+      version='2.1.5',
       description='Backport of the concurrent.futures package from Python 3.2',
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',

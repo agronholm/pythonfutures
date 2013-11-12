@@ -1,3 +1,10 @@
+2.1.5
+=====
+
+- Fixed Jython compatibility
+- Added metadata for wheel support
+
+
 2.1.4
 =====
 
