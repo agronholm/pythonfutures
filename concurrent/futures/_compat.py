@@ -99,3 +99,13 @@ def namedtuple(typename, field_names):
         result.__module__ = _sys._getframe(1).f_globals.get('__name__', '__main__')
 
     return result
+
+
+if _sys.version_info[0] < 3:
+    def reraise(exc, traceback):
+        locals_ = {'exc_type': type(exc), 'exc_value': exc, 'traceback': traceback}
+        exec('raise exc_type, exc_value, traceback', {}, locals_)
+else:
+    def reraise(exc, traceback):
+        # Tracebacks are embedded in exceptions in Python 3
+        raise exc

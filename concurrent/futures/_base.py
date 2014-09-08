@@ -6,6 +6,8 @@ import logging
 import threading
 import time
 
+from concurrent.futures._compat import reraise
+
 try:
     from collections import namedtuple
 except ImportError:
@@ -290,6 +292,7 @@ class Future(object):
         self._state = PENDING
         self._result = None
         self._exception = None
+        self._traceback = None
         self._waiters = []
         self._done_callbacks = []
 
@@ -353,7 +356,7 @@ class Future(object):
 
     def __get_result(self):
         if self._exception:
-            raise self._exception
+            reraise(self._exception, self._traceback)
         else:
             return self._result
 
@@ -405,6 +408,39 @@ class Future(object):
             else:
                 raise TimeoutError()
 
+    def exception_info(self, timeout=None):
+        """Return a tuple of (exception, traceback) raised by the call that the
+        future represents.
+
+        Args:
+            timeout: The number of seconds to wait for the exception if the
+                future isn't done. If None, then there is no limit on the wait
+                time.
+
+        Returns:
+            The exception raised by the call that the future represents or None
+            if the call completed without raising.
+
+        Raises:
+            CancelledError: If the future was cancelled.
+            TimeoutError: If the future didn't finish executing before the given
+                timeout.
+        """
+        with self._condition:
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                raise CancelledError()
+            elif self._state == FINISHED:
+                return self._exception, self._traceback
+
+            self._condition.wait(timeout)
+
+            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                raise CancelledError()
+            elif self._state == FINISHED:
+                return self._exception, self._traceback
+            else:
+                raise TimeoutError()
+
     def exception(self, timeout=None):
         """Return the exception raised by the call that the future represents.
 
@@ -422,21 +458,7 @@ class Future(object):
             TimeoutError: If the future didn't finish executing before the given
                 timeout.
         """
-
-        with self._condition:
-            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
-                raise CancelledError()
-            elif self._state == FINISHED:
-                return self._exception
-
-            self._condition.wait(timeout)
-
-            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
-                raise CancelledError()
-            elif self._state == FINISHED:
-                return self._exception
-            else:
-                raise TimeoutError()
+        return self.exception_info(timeout)[0]
 
     # The following methods should only be used by Executors and in tests.
     def set_running_or_notify_cancel(self):
@@ -492,18 +514,27 @@ class Future(object):
             self._condition.notify_all()
         self._invoke_callbacks()
 
-    def set_exception(self, exception):
-        """Sets the result of the future as being the given exception.
+    def set_exception_info(self, exception, traceback):
+        """Sets the result of the future as being the given exception
+        and traceback.
 
         Should only be used by Executor implementations and unit tests.
         """
         with self._condition:
             self._exception = exception
+            self._traceback = traceback
             self._state = FINISHED
             for waiter in self._waiters:
                 waiter.add_exception(self)
             self._condition.notify_all()
         self._invoke_callbacks()
+
+    def set_exception(self, exception):
+        """Sets the result of the future as being the given exception.
+
+        Should only be used by Executor implementations and unit tests.
+        """
+        self.set_exception_info(exception, None)
 
 class Executor(object):
     """This is an abstract base class for concrete asynchronous executors."""

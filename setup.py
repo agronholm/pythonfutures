@@ -12,7 +12,7 @@ except ImportError:
     from distutils.core import setup
 
 setup(name='futures',
-      version='2.1.6',
+      version='2.2.0',
       description='Backport of the concurrent.futures package from Python 3.2',
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',

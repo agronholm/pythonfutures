@@ -1,3 +1,11 @@
+2.2.0
+=====
+
+- Added the set_exception_info() and exception_info() methods to Future
+  to enable extraction of tracebacks on Python 2.x
+- Added support for Future.set_exception_info() to ThreadPoolExecutor
+
+
 2.1.6
 =====
 
