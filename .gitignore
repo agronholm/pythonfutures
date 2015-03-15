@@ -1,0 +1,7 @@
+*.egg-info
+*.pyc
+dist
+.project
+.pydevproject
+.idea
+.tox
