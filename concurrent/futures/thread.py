@@ -86,18 +86,22 @@ def _worker(executor_reference, work_queue):
         _base.LOGGER.critical('Exception in worker', exc_info=True)
 
 class ThreadPoolExecutor(_base.Executor):
-    def __init__(self, max_workers):
+    def __init__(self, max_workers, preallocate_workers=0):
         """Initializes a new ThreadPoolExecutor instance.
 
         Args:
             max_workers: The maximum number of threads that can be used to
                 execute the given calls.
+            preallocate_workers: the number of thread to allocate at once
+                (optional; default, zero)
         """
         self._max_workers = max_workers
         self._work_queue = queue.Queue()
         self._threads = set()
         self._shutdown = False
         self._shutdown_lock = threading.Lock()
+        for _ in range(min(max_workers, preallocate_workers)):
+            self._adjust_thread_count()
 
     def submit(self, fn, *args, **kwargs):
         with self._shutdown_lock:
