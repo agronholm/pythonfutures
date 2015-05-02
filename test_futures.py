@@ -477,7 +477,15 @@ class ExecutorTest(unittest.TestCase):
 
 
 class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
-    pass
+    def test_map_submits_without_iteration(self):
+        """Tests verifying issue 11777."""
+        finished = []
+        def record_finished(n):
+            finished.append(n)
+
+        self.executor.map(record_finished, range(10))
+        self.executor.shutdown(wait=True)
+        self.assertEqual(len(finished), 10)
 
 
 class ProcessPoolExecutorTest(ProcessPoolMixin, ExecutorTest):
