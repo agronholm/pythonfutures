@@ -3,6 +3,7 @@
 
 - Dropped Python 2.5 and 3.1 support
 - Removed the deprecated "futures" top level package
+- Applied patch for issue 16284 (memory leak)
 
 
 2.2.0

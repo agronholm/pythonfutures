@@ -214,6 +214,8 @@ def _queue_management_worker(executor_reference,
                 work_item.future.set_exception(result_item.exception)
             else:
                 work_item.future.set_result(result_item.result)
+            # Delete references to object. See issue16284
+            del work_item
         # Check whether we should start shutting down.
         executor = executor_reference()
         # No more work items can be added if:
