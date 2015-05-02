@@ -1,17 +1,10 @@
 # Copyright 2009 Brian Quinlan. All Rights Reserved.
 # Licensed to PSF under a Contributor Agreement.
 
-from __future__ import with_statement
+import collections
 import logging
 import threading
 import time
-
-from concurrent.futures._compat import reraise
-
-try:
-    from collections import namedtuple
-except ImportError:
-    from concurrent.futures._compat import namedtuple
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
@@ -233,7 +226,7 @@ def as_completed(fs, timeout=None):
         for f in fs:
             f._waiters.remove(waiter)
 
-DoneAndNotDoneFutures = namedtuple(
+DoneAndNotDoneFutures = collections.namedtuple(
         'DoneAndNotDoneFutures', 'done not_done')
 def wait(fs, timeout=None, return_when=ALL_COMPLETED):
     """Wait for the futures in the given sequence to complete.
@@ -356,7 +349,7 @@ class Future(object):
 
     def __get_result(self):
         if self._exception:
-            reraise(self._exception, self._traceback)
+            raise type(self._exception), self._exception, self._traceback
         else:
             return self._result
 

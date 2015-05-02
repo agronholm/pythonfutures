@@ -1,13 +1,9 @@
 #!/usr/bin/env python
-import sys
-import os
 
 extras = {}
 try:
     from setuptools import setup
     extras['zip_safe'] = False
-    if sys.version_info < (2, 6) and os.name != 'java':
-        extras['install_requires'] = ['multiprocessing']
 except ImportError:
     from distutils.core import setup
 
@@ -19,15 +15,13 @@ setup(name='futures',
       maintainer='Alex Gronholm',
       maintainer_email='alex.gronholm+pypi@nextday.fi',
       url='https://github.com/agronholm/pythonfutures',
-      packages=['futures', 'concurrent', 'concurrent.futures'],
+      packages=['concurrent', 'concurrent.futures'],
       license='BSD',
       classifiers=['License :: OSI Approved :: BSD License',
                    'Development Status :: 5 - Production/Stable',
                    'Intended Audience :: Developers',
-                   'Programming Language :: Python :: 2.5',
                    'Programming Language :: Python :: 2.6',
                    'Programming Language :: Python :: 2.7',
-                   'Programming Language :: Python :: 3',
-                   'Programming Language :: Python :: 3.1'],
+                   'Programming Language :: Python :: 2 :: Only'],
       **extras
       )

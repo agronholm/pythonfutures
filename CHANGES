@@ -1,3 +1,10 @@
+3.0.0
+=====
+
+- Dropped Python 2.5 and 3.1 support
+- Removed the deprecated "futures" top level package
+
+
 2.2.0
 =====
 

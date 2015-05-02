@@ -15,9 +15,11 @@ from concurrent.futures._base import (FIRST_COMPLETED,
                                       wait,
                                       as_completed)
 from concurrent.futures.thread import ThreadPoolExecutor
+import sys
 
-# Jython doesn't have multiprocessing
 try:
     from concurrent.futures.process import ProcessPoolExecutor
 except ImportError:
-    pass
+    # Jython doesn't have multiprocessing
+    if not sys.platform.startswith('java'):
+        raise

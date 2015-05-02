@@ -43,19 +43,13 @@ Process #1..n:
   _ResultItems in "Request Q"
 """
 
-from __future__ import with_statement
 import atexit
+from concurrent.futures import _base
+import Queue as queue
 import multiprocessing
 import threading
 import weakref
 import sys
-
-from concurrent.futures import _base
-
-try:
-    import queue
-except ImportError:
-    import Queue as queue
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 

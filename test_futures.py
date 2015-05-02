@@ -1,4 +1,3 @@
-from __future__ import with_statement
 import os
 import subprocess
 import sys
@@ -8,6 +7,8 @@ import contextlib
 import logging
 import re
 import time
+from StringIO import StringIO
+from test import test_support
 
 from concurrent import futures
 from concurrent.futures._base import (
@@ -17,21 +18,6 @@ try:
     import unittest2 as unittest
 except ImportError:
     import unittest
-
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
-
-try:
-    from test import test_support
-except ImportError:
-    from test import support as test_support
-
-try:
-    next
-except NameError:
-    next = lambda x: x.next()
 
 
 def reap_threads(func):
