@@ -1,3 +1,9 @@
+3.0.1
+=====
+
+- Made Executor.map() non-greedy
+
+
 3.0.0
 =====
 
