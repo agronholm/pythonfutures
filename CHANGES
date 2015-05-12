@@ -1,3 +1,9 @@
+3.0.2
+=====
+
+- Made multiprocessing optional again on implementations other than just Jython
+
+
 3.0.1
 =====
 
