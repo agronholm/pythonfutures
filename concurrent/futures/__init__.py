@@ -20,6 +20,5 @@ import sys
 try:
     from concurrent.futures.process import ProcessPoolExecutor
 except ImportError:
-    # Jython doesn't have multiprocessing
-    if not sys.platform.startswith('java'):
-        raise
+    # some platforms don't have multiprocessing
+    pass
