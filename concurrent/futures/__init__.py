@@ -15,7 +15,6 @@ from concurrent.futures._base import (FIRST_COMPLETED,
                                       wait,
                                       as_completed)
 from concurrent.futures.thread import ThreadPoolExecutor
-import sys
 
 try:
     from concurrent.futures.process import ProcessPoolExecutor
