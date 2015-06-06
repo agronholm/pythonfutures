@@ -32,7 +32,7 @@ _shutdown = False
 def _python_exit():
     global _shutdown
     _shutdown = True
-    items = list(_threads_queues.items())
+    items = list(_threads_queues.items()) if _threads_queues else ()
     for t, q in items:
         q.put(None)
     for t, q in items:
