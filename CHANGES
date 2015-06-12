@@ -1,3 +1,9 @@
+3.0.3
+=====
+
+- Fixed AttributeErrors on exit on Python 2.x
+
+
 3.0.2
 =====
 
