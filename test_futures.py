@@ -478,6 +478,13 @@ class ExecutorTest(unittest.TestCase):
 
         self.assertEqual([None, None], results)
 
+    def test_map_greedy(self):
+        seq = iter(xrange(200))
+        for i in self.executor.map(pow, seq, xrange(200), high_watermark=10):
+            nextseq = next(seq)
+            break
+        self.executor.shutdown(wait=True)
+
 
 class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
     def test_map_submits_without_iteration(self):
