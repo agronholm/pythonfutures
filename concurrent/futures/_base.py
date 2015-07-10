@@ -554,6 +554,8 @@ class Executor(object):
                 passed iterables.
             timeout: The maximum number of seconds to wait. If None, then there
                 is no limit on the wait time.
+            high_watermark: The maximum number of futures outstanding.
+            low_watermark: The minimum number of futures outstading.
 
         Returns:
             An iterator equivalent to: map(func, *iterables) but the calls may
@@ -563,26 +565,55 @@ class Executor(object):
             TimeoutError: If the entire result iterator could not be generated
                 before the given timeout.
             Exception: If fn(*args) raises for any values.
+
+        High/low watermark are used to control how many jobs are submitted to
+        workers.  For example, if your iterables comes from a large file input,
+        if it's too high, the entire file will be read in memory, which may be
+        too large. This way, no more than high_watermark iterable items are
+        read in memory. It defaults to 100/50 which should keep busy most
+        servers, but if you're running a lot of threads, it might be
+        insufficient.
+
+        Don't mess with the watermark arguments unless you have large amount of
+        cores and lots of very quick jobs to do.
         """
         timeout = kwargs.get('timeout')
+        # TODO Base default high/low watermark on some multiple of number of
+        # workers available. However, that information is not available.
+        high_watermark = kwargs.get('high_watermark', 100)
+        low_watermark = max(kwargs.get('low_watermark', high_watermark / 2), 0)
+
         if timeout is not None:
             end_time = timeout + time.time()
 
-        fs = [self.submit(fn, *args) for args in itertools.izip(*iterables)]
+        args_iter = itertools.izip(*iterables)
+        fs = []
+
+        def submit_jobs():
+            # Submit jobs to high_watermark, return True if more jobs available
+            for args in args_iter:
+                fs.append(self.submit(fn, *args))
+                if len(fs) >= high_watermark:
+                    return True
+            return False
 
         # Yield must be hidden in closure so that the futures are submitted
         # before the first iterator value is required.
-        def result_iterator():
+        def result_iterator(outstanding_jobs):
             try:
-                for future in fs:
-                    if timeout is None:
-                        yield future.result()
+                while outstanding_jobs or fs:
+                    if outstanding_jobs and len(fs) <= low_watermark:
+                        outstanding_jobs = submit_jobs()
                     else:
-                        yield future.result(end_time - time.time())
+                        future = fs.pop(0)
+                        if timeout is None:
+                            yield future.result()
+                        else:
+                            yield future.result(end_time - time.time())
             finally:
                 for future in fs:
                     future.cancel()
-        return result_iterator()
+        return result_iterator(submit_jobs())
 
     def shutdown(self, wait=True):
         """Clean-up the resources associated with the Executor.
