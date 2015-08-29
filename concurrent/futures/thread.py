@@ -59,8 +59,9 @@ class _WorkItem(object):
         else:
             self.future.set_result(result)
 
-def _worker(executor_reference, work_queue):
+def _worker(before_run, executor_reference, work_queue):
     try:
+        before_run()
         while True:
             work_item = work_queue.get(block=True)
             if work_item is not None:
@@ -82,7 +83,7 @@ def _worker(executor_reference, work_queue):
         _base.LOGGER.critical('Exception in worker', exc_info=True)
 
 class ThreadPoolExecutor(_base.Executor):
-    def __init__(self, max_workers):
+    def __init__(self, max_workers, on_new_thread=None):
         """Initializes a new ThreadPoolExecutor instance.
 
         Args:
@@ -91,6 +92,7 @@ class ThreadPoolExecutor(_base.Executor):
         """
         self._max_workers = max_workers
         self._work_queue = queue.Queue()
+        self._on_new_thread = on_new_thread or lambda: None
         self._threads = set()
         self._shutdown = False
         self._shutdown_lock = threading.Lock()
@@ -117,7 +119,8 @@ class ThreadPoolExecutor(_base.Executor):
         # idle threads than items in the work queue.
         if len(self._threads) < self._max_workers:
             t = threading.Thread(target=_worker,
-                                 args=(weakref.ref(self, weakref_cb),
+                                 args=(self._on_new_thread,
+                                       weakref.ref(self, weakref_cb),
                                        self._work_queue))
             t.daemon = True
             t.start()
