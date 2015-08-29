@@ -61,7 +61,10 @@ class _WorkItem(object):
 
 def _worker(before_run, executor_reference, work_queue):
     try:
-        before_run()
+        try:
+            before_run()
+        finally:
+            del before_run
         while True:
             work_item = work_queue.get(block=True)
             if work_item is not None:
