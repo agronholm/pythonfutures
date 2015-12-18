@@ -119,11 +119,16 @@ def _process_worker(call_queue, result_queue):
             worker that it should exit when call_queue is empty.
     """
     while True:
-        call_item = call_queue.get(block=True)
-        if call_item is None:
-            # Wake up queue management thread
-            result_queue.put(None)
-            return
+        try:
+            call_item = call_queue.get(block=True)
+            if call_item is None:
+                # Wake up queue management thread
+                result_queue.put(None)
+                return
+        # since all child processes get the interrupt as well, we'll just pass
+        # on the exception and rely on our parent to handle this for us
+        except KeyboardInterrupt:
+            continue
         try:
             r = call_item.fn(*call_item.args, **call_item.kwargs)
         except BaseException:
