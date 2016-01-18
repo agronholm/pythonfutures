@@ -1,3 +1,9 @@
+3.0.4
+=====
+
+- Fixed inability to forcibly terminate the process if there are pending workers
+
+
 3.0.3
 =====
 
