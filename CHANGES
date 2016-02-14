@@ -1,3 +1,9 @@
+3.0.5
+=====
+
+- Fixed OverflowError with ProcessPoolExecutor on Windows (regression introduced in 3.0.4)
+
+
 3.0.4
 =====
 

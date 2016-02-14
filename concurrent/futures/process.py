@@ -232,7 +232,7 @@ def _queue_management_worker(executor_reference,
                 # some multiprocessing.Queue methods may deadlock on Mac OS
                 # X.
                 for p in processes:
-                    p.join(sys.maxint)
+                    p.join()
                 call_queue.close()
                 return
         del executor
