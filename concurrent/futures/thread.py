@@ -10,6 +10,13 @@ import threading
 import weakref
 import sys
 
+try:
+    from multiprocessing import cpu_count
+except ImportError:
+    # some platforms don't have multiprocessing
+    def cpu_count():
+        return None
+
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 # Workers are created as daemon threads. This is done to allow the interpreter
@@ -81,14 +88,22 @@ def _worker(executor_reference, work_queue):
     except BaseException:
         _base.LOGGER.critical('Exception in worker', exc_info=True)
 
+
 class ThreadPoolExecutor(_base.Executor):
-    def __init__(self, max_workers):
+    def __init__(self, max_workers=None):
         """Initializes a new ThreadPoolExecutor instance.
 
         Args:
             max_workers: The maximum number of threads that can be used to
                 execute the given calls.
         """
+        if max_workers is None:
+            # Use this number because ThreadPoolExecutor is often
+            # used to overlap I/O instead of CPU work.
+            max_workers = (cpu_count() or 1) * 5
+        if max_workers <= 0:
+            raise ValueError("max_workers must be greater than 0")
+
         self._max_workers = max_workers
         self._work_queue = queue.Queue()
         self._threads = set()

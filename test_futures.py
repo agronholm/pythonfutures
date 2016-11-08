@@ -14,6 +14,7 @@ from test import test_support
 from concurrent import futures
 from concurrent.futures._base import (
     PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future)
+from concurrent.futures.thread import cpu_count
 
 try:
     import unittest2 as unittest
@@ -478,6 +479,13 @@ class ExecutorTest(unittest.TestCase):
 
         self.assertEqual([None, None], results)
 
+    def test_max_workers_negative(self):
+        for number in (0, -1):
+            with self.assertRaises(ValueError) as cm:
+                self.executor_type(max_workers=number)
+
+            assert str(cm.exception) == "max_workers must be greater than 0"
+
 
 class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
     def test_map_submits_without_iteration(self):
@@ -489,6 +497,11 @@ class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
         self.executor.map(record_finished, range(10))
         self.executor.shutdown(wait=True)
         self.assertEqual(len(finished), 10)
+
+    def test_default_workers(self):
+        executor = self.executor_type()
+        self.assertEqual(executor._max_workers,
+                         (cpu_count() or 1) * 5)
 
 
 class ProcessPoolExecutorTest(ProcessPoolMixin, ExecutorTest):

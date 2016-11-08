@@ -262,6 +262,7 @@ def _check_system_limits():
     _system_limited = "system provides too few semaphores (%d available, 256 necessary)" % nsems_max
     raise NotImplementedError(_system_limited)
 
+
 class ProcessPoolExecutor(_base.Executor):
     def __init__(self, max_workers=None):
         """Initializes a new ProcessPoolExecutor instance.
@@ -276,6 +277,9 @@ class ProcessPoolExecutor(_base.Executor):
         if max_workers is None:
             self._max_workers = multiprocessing.cpu_count()
         else:
+            if max_workers <= 0:
+                raise ValueError("max_workers must be greater than 0")
+
             self._max_workers = max_workers
 
         # Make the call queue slightly larger than the number of processes to
