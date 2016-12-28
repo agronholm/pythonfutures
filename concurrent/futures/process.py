@@ -126,7 +126,7 @@ def _process_worker(call_queue, result_queue):
             return
         try:
             r = call_item.fn(*call_item.args, **call_item.kwargs)
-        except BaseException:
+        except:
             e = sys.exc_info()[1]
             result_queue.put(_ResultItem(call_item.work_id,
                                          exception=e))
