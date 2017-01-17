@@ -8,7 +8,7 @@ The :mod:`concurrent.futures` module provides a high-level interface for
 asynchronously executing callables.
 
 The asynchronous execution can be be performed by threads using
-:class:`ThreadPoolExecutor` or seperate processes using
+:class:`ThreadPoolExecutor` or separate processes using
 :class:`ProcessPoolExecutor`. Both implement the same interface, which is
 defined by the abstract :class:`Executor` class.
 
