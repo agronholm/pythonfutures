@@ -1,17 +1,19 @@
 3.1.0
 =====
 
-- Backported sanity checks for the ``max_workers`` constructor argument for ThreadPoolExecutor and
-  ProcessPoolExecutor
-- Set the default value of ``max_workers`` in ThreadPoolExecutor to ``None``, as in upstream code
-  (computes the thread pool size based on the number of CPUs)
+- Backported sanity checks for the ``max_workers`` constructor argument for
+  ThreadPoolExecutor and ProcessPoolExecutor
+- Set the default value of ``max_workers`` in ThreadPoolExecutor to ``None``,
+  as in upstream code (computes the thread pool size based on the number of
+  CPUs)
 - Added support for old-style exception objects
 
 
 3.0.5
 =====
 
-- Fixed OverflowError with ProcessPoolExecutor on Windows (regression introduced in 3.0.4)
+- Fixed OverflowError with ProcessPoolExecutor on Windows (regression
+  introduced in 3.0.4)
 
 
 3.0.4
