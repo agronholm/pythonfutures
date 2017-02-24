@@ -60,7 +60,7 @@ class _WorkItem(object):
 
         try:
             result = self.fn(*self.args, **self.kwargs)
-        except BaseException:
+        except:
             e, tb = sys.exc_info()[1:]
             self.future.set_exception_info(e, tb)
         else:
@@ -85,7 +85,7 @@ def _worker(executor_reference, work_queue):
                 work_queue.put(None)
                 return
             del executor
-    except BaseException:
+    except:
         _base.LOGGER.critical('Exception in worker', exc_info=True)
 
 

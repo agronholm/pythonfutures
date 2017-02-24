@@ -8,6 +8,7 @@ import logging
 import re
 import time
 import gc
+import traceback
 from StringIO import StringIO
 from test import test_support
 
@@ -542,22 +543,33 @@ class FutureTests(unittest.TestCase):
     def test_done_callback_raises(self):
         with captured_stderr() as stderr:
             raising_was_called = [False]
+            raising_old_style_was_called = [False]
             fn_was_called = [False]
 
             def raising_fn(callback_future):
                 raising_was_called[0] = True
                 raise Exception('doh!')
 
+            def raising_old_style_fn(callback_future):
+                raising_old_style_was_called[0] = True
+                class OldStyle:  # Does not inherit from object
+                   def __str__(self):
+                       return 'doh!'
+                raise OldStyle()
+
             def fn(callback_future):
                 fn_was_called[0] = True
 
             f = Future()
             f.add_done_callback(raising_fn)
+            f.add_done_callback(raising_old_style_fn)
             f.add_done_callback(fn)
             f.set_result(5)
             self.assertTrue(raising_was_called)
+            self.assertTrue(raising_old_style_was_called)
             self.assertTrue(fn_was_called)
             self.assertIn('Exception: doh!', stderr.getvalue())
+            self.assertIn('OldStyle: doh!', stderr.getvalue())
 
     def test_done_callback_already_successful(self):
         callback_result = [None]
@@ -720,6 +732,33 @@ class FutureTests(unittest.TestCase):
         t.start()
 
         self.assertTrue(isinstance(f1.exception(timeout=5), IOError))
+
+    def test_old_style_exception(self):
+        class OldStyle:  # Does not inherit from object
+            def  __str__(self):
+                return 'doh!'
+        callback_exc_info = [None]
+        def fn(callback_future):
+            callback_exc_info[0] = callback_future.exception_info()
+        f = Future()
+        f.add_done_callback(fn)
+        try:
+            raise OldStyle()
+        except OldStyle:
+            want_exc_info = sys.exc_info()
+            f.set_exception_info(*want_exc_info[1:])
+        self.assertEqual(f.exception_info(), want_exc_info[1:])
+        self.assertEqual(callback_exc_info[0], want_exc_info[1:])
+        try:
+            f.result()
+        except OldStyle:
+            got_exc_info = sys.exc_info()
+        else:
+            self.fail('OldStyle exception not raised')
+        self.assertEqual(got_exc_info[:2], want_exc_info[:2])
+        got_tb = traceback.extract_tb(got_exc_info[2])
+        want_tb = traceback.extract_tb(want_exc_info[2])
+        self.assertEqual(got_tb[-len(want_tb):], want_tb)
 
 @reap_threads
 def test_main():
