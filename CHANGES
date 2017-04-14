@@ -6,6 +6,7 @@
 - Set the default value of ``max_workers`` in ThreadPoolExecutor to ``None``, as in upstream code
   (computes the thread pool size based on the number of CPUs)
 - Added support for old-style exception objects
+- Switched to the PSF license
 
 
 3.0.5
