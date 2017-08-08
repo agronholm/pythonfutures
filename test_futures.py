@@ -29,7 +29,7 @@ def reap_threads(func):
     If threading is unavailable this function does nothing.
     """
     @functools.wraps(func)
-    def decorator(*args): 
+    def decorator(*args):
         key = test_support.threading_setup()
         try:
             return func(*args)
@@ -50,7 +50,7 @@ def _assert_python(expected_success, *args, **env_vars):
     # caller is responsible to pass the full environment.
     if env_vars.pop('__cleanenv', None):
         env = {}
-    env.update(env_vars) 
+    env.update(env_vars)
     cmd_line.extend(args)
     p = subprocess.Popen(cmd_line, stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -78,7 +78,7 @@ def assert_python_ok(*args, **env_vars):
     return _assert_python(True, *args, **env_vars)
 
 
-def strip_python_stderr(stderr): 
+def strip_python_stderr(stderr):
     """Strip the stderr of a Python process from potential debug output
     emitted by the interpreter.
 
@@ -228,6 +228,29 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
         gc.collect()
 
         for t in threads:
+            t.join()
+
+    def test_thread_names_assigned(self):
+        executor = futures.ThreadPoolExecutor(
+            max_workers=5, thread_name_prefix='SpecialPool')
+        executor.map(abs, range(-5, 5))
+        threads = executor._threads
+        del executor
+
+        for t in threads:
+            self.assertRegexpMatches(t.name, r'^SpecialPool_[0-4]$')
+            t.join()
+
+    def test_thread_names_default(self):
+        executor = futures.ThreadPoolExecutor(max_workers=5)
+        executor.map(abs, range(-5, 5))
+        threads = executor._threads
+        del executor
+
+        for t in threads:
+            # Ensure that our default name is reasonably sane and unique when
+            # no thread_name_prefix was supplied.
+            self.assertRegexpMatches(t.name, r'ThreadPoolExecutor-\d+_[0-4]$')
             t.join()
 
 

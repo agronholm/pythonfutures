@@ -1,3 +1,10 @@
+Unreleased
+==========
+
+- The ThreadPoolExecutor class constructor now accepts an optional ``thread_name_prefix``
+  argument to make it possible to customize the names of the threads created by the pool.
+  Upstream contribution by Gregory P. Smith in https://bugs.python.org/issue27664. 
+
 3.1.1
 =====
 
