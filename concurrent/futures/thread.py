@@ -5,6 +5,7 @@
 
 import atexit
 from concurrent.futures import _base
+import itertools
 import Queue as queue
 import threading
 import weakref
@@ -90,6 +91,10 @@ def _worker(executor_reference, work_queue):
 
 
 class ThreadPoolExecutor(_base.Executor):
+
+    # Used to assign unique thread names when thread_name_prefix is not supplied.
+    _counter = itertools.count().next
+
     def __init__(self, max_workers=None, thread_name_prefix=''):
         """Initializes a new ThreadPoolExecutor instance.
 
@@ -110,7 +115,8 @@ class ThreadPoolExecutor(_base.Executor):
         self._threads = set()
         self._shutdown = False
         self._shutdown_lock = threading.Lock()
-        self._thread_name_prefix = thread_name_prefix
+        self._thread_name_prefix = (thread_name_prefix or
+                                    ("ThreadPoolExecutor-%d" % self._counter()))
 
     def submit(self, fn, *args, **kwargs):
         with self._shutdown_lock:
