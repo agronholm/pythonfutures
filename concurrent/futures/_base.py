@@ -322,17 +322,20 @@ class Future(object):
         with self._condition:
             if self._state == FINISHED:
                 if self._exception:
-                    return '<Future at %s state=%s raised %s>' % (
-                        hex(id(self)),
+                    return '<%s at %#x state=%s raised %s>' % (
+                        self.__class__.__name__,
+                        id(self),
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._exception.__class__.__name__)
                 else:
-                    return '<Future at %s state=%s returned %s>' % (
-                        hex(id(self)),
+                    return '<%s at %#x state=%s returned %s>' % (
+                        self.__class__.__name__,
+                        id(self),
                         _STATE_TO_DESCRIPTION_MAP[self._state],
                         self._result.__class__.__name__)
-            return '<Future at %s state=%s>' % (
-                    hex(id(self)),
+            return '<%s at %#x state=%s>' % (
+                    self.__class__.__name__,
+                    id(self),
                    _STATE_TO_DESCRIPTION_MAP[self._state])
 
     def cancel(self):
@@ -355,7 +358,7 @@ class Future(object):
         return True
 
     def cancelled(self):
-        """Return True if the future has cancelled."""
+        """Return True if the future was cancelled."""
         with self._condition:
             return self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]
 
@@ -573,7 +576,7 @@ class Executor(object):
         raise NotImplementedError()
 
     def map(self, fn, *iterables, **kwargs):
-        """Returns a iterator equivalent to map(fn, iter).
+        """Returns an iterator equivalent to map(fn, iter).
 
         Args:
             fn: A callable that will take as many arguments as there are
