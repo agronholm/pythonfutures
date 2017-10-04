@@ -262,7 +262,6 @@ def _check_system_limits():
     _system_limited = "system provides too few semaphores (%d available, 256 necessary)" % nsems_max
     raise NotImplementedError(_system_limited)
 
-
 class ProcessPoolExecutor(_base.Executor):
     def __init__(self, max_workers=None):
         """Initializes a new ProcessPoolExecutor instance.
@@ -326,22 +325,26 @@ class ProcessPoolExecutor(_base.Executor):
             self._processes.add(p)
 
     def submit(self, fn, *args, **kwargs):
-        with self._shutdown_lock:
-            if self._shutdown_thread:
-                raise RuntimeError('cannot schedule new futures after shutdown')
+        # check pending_work_items in case of memory exhausted
+        while len(self._pending_work_items) > self._max_workers + EXTRA_QUEUED_CALLS:
+            continue
+        else:
+            with self._shutdown_lock:
+                if self._shutdown_thread:
+                    raise RuntimeError('cannot schedule new futures after shutdown')
 
-            f = _base.Future()
-            w = _WorkItem(f, fn, args, kwargs)
+                f = _base.Future()
+                w = _WorkItem(f, fn, args, kwargs)
 
-            self._pending_work_items[self._queue_count] = w
-            self._work_ids.put(self._queue_count)
-            self._queue_count += 1
-            # Wake up queue management thread
-            self._result_queue.put(None)
+                self._pending_work_items[self._queue_count] = w
+                self._work_ids.put(self._queue_count)
+                self._queue_count += 1
+                # Wake up queue management thread
+                self._result_queue.put(None)
 
-            self._start_queue_management_thread()
-            self._adjust_process_count()
-            return f
+                self._start_queue_management_thread()
+                self._adjust_process_count()
+                return f
     submit.__doc__ = _base.Executor.submit.__doc__
 
     def shutdown(self, wait=True):
