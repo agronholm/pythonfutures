@@ -3,7 +3,13 @@ Unreleased
 
 - The ThreadPoolExecutor class constructor now accepts an optional ``thread_name_prefix``
   argument to make it possible to customize the names of the threads created by the pool.
-  Upstream contribution by Gregory P. Smith in https://bugs.python.org/issue27664. 
+  Upstream contribution by Gregory P. Smith in https://bugs.python.org/issue27664.
+- Backported fixes from upstream (thanks Lisandro Dalcin):
+
+  - python/cpython#1560
+  - python/cpython#3270
+  - python/cpython#3830
+
 
 3.1.1
 =====
@@ -90,7 +96,7 @@ Unreleased
 2.1.4
 =====
 
-- Ported the library again from Python 3.2.5 to get the latest bug fixes 
+- Ported the library again from Python 3.2.5 to get the latest bug fixes
 
 
 2.1.3
