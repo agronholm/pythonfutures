@@ -236,6 +236,7 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
         executor.map(abs, range(-5, 5))
         threads = executor._threads
         del executor
+        gc.collect()
 
         for t in threads:
             self.assertRegexpMatches(t.name, r'^SpecialPool_[0-4]$')
@@ -246,6 +247,7 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
         executor.map(abs, range(-5, 5))
         threads = executor._threads
         del executor
+        gc.collect()
 
         for t in threads:
             # Ensure that our default name is reasonably sane and unique when
