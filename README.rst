@@ -30,6 +30,6 @@ Or, using the newer syntax:
     )
 
 .. warning:: The ``ProcessPoolExecutor`` class has known (unfixable) problems on Python 2 and
-  should not be relied on for mission critical work.
+   should not be relied on for mission critical work.
 
 .. _concurrent.futures: https://docs.python.org/library/concurrent.futures.html
