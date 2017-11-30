@@ -1,5 +1,5 @@
-Unreleased
-==========
+3.2.0
+=====
 
 - The ThreadPoolExecutor class constructor now accepts an optional ``thread_name_prefix``
   argument to make it possible to customize the names of the threads created by the pool.

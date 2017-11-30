@@ -21,7 +21,7 @@ with open(os.path.join(here, 'README.rst')) as f:
     readme = f.read()
 
 setup(name='futures',
-      version='3.1.1',
+      version='3.2.0',
       description='Backport of the concurrent.futures package from Python 3',
       long_description=readme,
       author='Brian Quinlan',
