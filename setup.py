@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from warnings import warn
+import os.path
 import sys
 
 if sys.version_info[0] > 2:
@@ -14,9 +15,14 @@ try:
 except ImportError:
     from distutils.core import setup
 
+here = os.path.dirname(__file__)
+with open(os.path.join(here, 'README.rst')) as f:
+    readme = f.read()
+
 setup(name='futures',
       version='3.1.1',
       description='Backport of the concurrent.futures package from Python 3.2',
+      long_description=readme,
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',
       maintainer='Alex Gronholm',
