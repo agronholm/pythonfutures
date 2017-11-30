@@ -6,9 +6,9 @@ Unreleased
   Upstream contribution by Gregory P. Smith in https://bugs.python.org/issue27664.
 - Backported fixes from upstream (thanks Lisandro Dalcin):
 
-  - python/cpython#1560
-  - python/cpython#3270
-  - python/cpython#3830
+ - python/cpython#1560
+ - python/cpython#3270
+ - python/cpython#3830
 
 
 3.1.1
@@ -26,7 +26,7 @@ Unreleased
 3.1.0
 =====
 
-(Failed release)
+- (Failed release)
 
 
 3.0.5
@@ -66,11 +66,11 @@ Unreleased
 - Dropped Python 2.5 and 3.1 support
 - Removed the deprecated "futures" top level package
 - Applied patch for issue 11777 (Executor.map does not submit futures until
-                                 iter.next() is called)
+  iter.next() is called)
 - Applied patch for issue 15015 (accessing an non-existing attribute)
 - Applied patch for issue 16284 (memory leak)
 - Applied patch for issue 20367 (behavior of concurrent.futures.as_completed()
-                                 for duplicate arguments)
+  for duplicate arguments)
 
 2.2.0
 =====
@@ -136,4 +136,4 @@ Unreleased
 1.0
 ===
 
-Initial release.
+- Initial release
