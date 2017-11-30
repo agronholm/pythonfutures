@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding: utf-8
 from warnings import warn
 import os.path
 import sys
@@ -21,12 +22,12 @@ with open(os.path.join(here, 'README.rst')) as f:
 
 setup(name='futures',
       version='3.1.1',
-      description='Backport of the concurrent.futures package from Python 3.2',
+      description='Backport of the concurrent.futures package from Python 3',
       long_description=readme,
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',
-      maintainer='Alex Gronholm',
-      maintainer_email='alex.gronholm+pypi@nextday.fi',
+      maintainer=u'Alex Grönholm',
+      maintainer_email='alex.gronholm@nextday.fi',
       url='https://github.com/agronholm/pythonfutures',
       packages=['concurrent', 'concurrent.futures'],
       python_requires='>=2.6, <3',
