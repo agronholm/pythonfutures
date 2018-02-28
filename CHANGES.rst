@@ -67,7 +67,7 @@
 - Removed the deprecated "futures" top level package
 - Applied patch for issue 11777 (Executor.map does not submit futures until
   iter.next() is called)
-- Applied patch for issue 15015 (accessing an non-existing attribute)
+- Applied patch for issue 15015 (accessing a non-existing attribute)
 - Applied patch for issue 16284 (memory leak)
 - Applied patch for issue 20367 (behavior of concurrent.futures.as_completed()
   for duplicate arguments)
