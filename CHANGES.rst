@@ -1,3 +1,9 @@
+3.2.1
+=====
+
+- Prevents installation on Python 3.
+- Updates documentation and warnings around using this library in both Python 2 and 3.
+
 3.2.0
 =====
 
