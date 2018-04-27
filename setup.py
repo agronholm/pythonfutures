@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
+from __future__ import print_function
+
 from warnings import warn
 import os.path
 import sys
@@ -21,6 +23,25 @@ if sys.version_info[0] > 2:
         pass
 
 
+    error = ('This backport is meant only for Python 2.\n\n'
+             'Python {py} detected.\n\n'
+             'Python 3 users should not install it. \n'
+             'Python 3 users do not need it, as the concurrent.futures '
+             'package is available in the standard library.\n\n'
+             'Furthermore, because installing this involves changing '
+             'the standard library,\n'
+             'installing it on Python 3 cannot be guaranteed to be safe.\n\n'
+             'For guidance on how to require this '
+             'backport exclusively on Python 2,\n'
+             'please see the pythonfutures `README.rst` file '
+             'for more information:\n'
+             '    https://github.com/agronholm/pythonfutures/blob/master/README.rst\n\n'
+             '{pip}').format(py='{major}.{minor}.{micro}'.format(major=sys.version_info[0],
+                                                                  minor=sys.version_info[1],
+                                                                  micro=sys.version_info[2],),
+                             pip=pip_message)
+
+    print(error, file=sys.stderr)
 
 extras = {}
 try:
