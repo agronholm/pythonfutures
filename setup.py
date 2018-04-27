@@ -42,6 +42,7 @@ if sys.version_info[0] > 2:
                              pip=pip_message)
 
     print(error, file=sys.stderr)
+    sys.exit(1)
 
 extras = {}
 try:
