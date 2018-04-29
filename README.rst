@@ -4,8 +4,9 @@
 
 This is a backport of the `concurrent.futures`_ standard library module to Python 2.
 
-It should not be installed on Python 3, although there should be no harm in doing so, as the
-standard library takes precedence over third party libraries.
+It **does not** work on Python 3 due to Python 2 syntax being used in the codebase.
+Python 3 users should not attempt to install it, since the package is already included in the
+standard library.
 
 To conditionally require this library only on Python 2, you can do this in your ``setup.py``:
 
