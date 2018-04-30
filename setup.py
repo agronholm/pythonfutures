@@ -23,8 +23,9 @@ except ImportError:
     from distutils.core import setup
 
 setup(name='futures',
-      version='3.1.1',
+      version='3.1.2',
       description='Backport of the concurrent.futures package from Python 3.2',
+      long_description=readme,
       author='Brian Quinlan',
       author_email='brian@sweetapp.com',
       maintainer='Alex Gronholm',
