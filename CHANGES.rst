@@ -1,3 +1,9 @@
+3.3.0
+=====
+
+- Backported bpo-24882: Let ThreadPoolExecutor reuse idle threads before creating new thread
+
+
 3.2.0
 =====
 
