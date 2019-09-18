@@ -553,7 +553,9 @@ class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
     def test_idle_thread_reuse(self):
         executor = self.executor_type()
         executor.submit(mul, 21, 2).result()
+        time.sleep(0.001)
         executor.submit(mul, 6, 7).result()
+        time.sleep(0.001)
         executor.submit(mul, 3, 14).result()
         self.assertEqual(len(executor._threads), 1)
         executor.shutdown(wait=True)
