@@ -67,9 +67,9 @@ class _WorkItem(object):
         else:
             self.future.set_result(result)
 
-def _worker(executor_reference, work_queue, initializer=None):
+def _worker(executor_reference, work_queue, initializer, initargs):
     if initializer is not None:
-        initializer()
+        initializer(*initargs)
     try:
         while True:
             work_item = work_queue.get(block=True)
@@ -103,7 +103,7 @@ class ThreadPoolExecutor(_base.Executor):
     # Used to assign unique thread names when thread_name_prefix is not supplied.
     _counter = itertools.count().next
 
-    def __init__(self, max_workers=None, thread_name_prefix='', initializer=None):
+    def __init__(self, max_workers=None, thread_name_prefix='', initializer=None, initargs=()):
         """Initializes a new ThreadPoolExecutor instance.
 
         Args:
@@ -120,6 +120,7 @@ class ThreadPoolExecutor(_base.Executor):
 
         self._max_workers = max_workers
         self._initializer = initializer
+        self._initargs = initargs
         self._work_queue = queue.Queue()
         self._idle_semaphore = threading.Semaphore(0)
         self._threads = set()
@@ -157,7 +158,7 @@ class ThreadPoolExecutor(_base.Executor):
                                      num_threads)
             t = threading.Thread(name=thread_name, target=_worker,
                                  args=(weakref.ref(self, weakref_cb),
-                                       self._work_queue, self._initializer))
+                                       self._work_queue, self._initializer, self._initargs))
             t.daemon = True
             t.start()
             self._threads.add(t)

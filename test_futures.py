@@ -537,6 +537,16 @@ class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
         self.assertEqual(executor._max_workers,
                          (cpu_count() or 1) * 5)
 
+    def test_thread_initializer(self):
+        initialized = []
+        def initializer(i):
+            initialized.append(i)
+        executor = self.executor_type(initializer=initializer, initargs=(1,))
+        executor.submit(time.sleep, 1)
+        executor.submit(time.sleep, 1)
+        executor.shutdown(wait=True)
+        self.assertEqual(initialized, [1, 1])
+
     def test_saturation(self):
         executor = self.executor_type(4)
         def acquire_lock(lock):
