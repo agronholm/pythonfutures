@@ -14,7 +14,7 @@ from test import test_support
 
 from concurrent import futures
 from concurrent.futures._base import (
-    PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future)
+    PENDING, RUNNING, CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED, Future, BrokenExecutor)
 from concurrent.futures.thread import cpu_count
 
 try:
@@ -546,6 +546,16 @@ class ThreadPoolExecutorTest(ThreadPoolMixin, ExecutorTest):
         executor.submit(time.sleep, 1)
         executor.shutdown(wait=True)
         self.assertEqual(initialized, [1, 1])
+
+    def test_broken_thread_initializer(self):
+        def broken_initializer(i):
+            raise ValueError()
+        executor = self.executor_type(initializer=broken_initializer)
+        with self.assertRaises(BrokenExecutor):
+            executor.submit(time.sleep, 1).result()
+        with self.assertRaises(BrokenExecutor):
+            executor.submit(time.sleep, 1)
+        executor.shutdown(wait=True)
 
     def test_saturation(self):
         executor = self.executor_type(4)
