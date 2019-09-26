@@ -69,7 +69,14 @@ class _WorkItem(object):
 
 def _worker(executor_reference, work_queue, initializer, initargs):
     if initializer is not None:
-        initializer(*initargs)
+        try:
+            initializer(*initargs)
+        except BaseException:
+            _base.LOGGER.critical('Exception in initializer:', exc_info=True)
+            executor = executor_reference()
+            if executor is not None:
+                executor._initializer_failed()
+            return
     try:
         while True:
             work_item = work_queue.get(block=True)
@@ -98,6 +105,12 @@ def _worker(executor_reference, work_queue, initializer, initargs):
         _base.LOGGER.critical('Exception in worker', exc_info=True)
 
 
+class BrokenThreadPool(_base.BrokenExecutor):
+    """
+    Raised when a worker thread in a ThreadPoolExecutor failed initializing.
+    """
+
+
 class ThreadPoolExecutor(_base.Executor):
 
     # Used to assign unique thread names when thread_name_prefix is not supplied.
@@ -124,6 +137,7 @@ class ThreadPoolExecutor(_base.Executor):
         self._work_queue = queue.Queue()
         self._idle_semaphore = threading.Semaphore(0)
         self._threads = set()
+        self._broken = False
         self._shutdown = False
         self._shutdown_lock = threading.Lock()
         self._thread_name_prefix = (thread_name_prefix or
@@ -131,6 +145,8 @@ class ThreadPoolExecutor(_base.Executor):
 
     def submit(self, fn, *args, **kwargs):
         with self._shutdown_lock:
+            if self._broken:
+                raise BrokenThreadPool(self._broken)
             if self._shutdown:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 
@@ -163,6 +179,19 @@ class ThreadPoolExecutor(_base.Executor):
             t.start()
             self._threads.add(t)
             _threads_queues[t] = self._work_queue
+
+    def _initializer_failed(self):
+        with self._shutdown_lock:
+            self._broken = ('A thread initializer failed, the thread pool '
+                            'is not usable anymore')
+            # Drain work queue and mark pending futures failed
+            while True:
+                try:
+                    work_item = self._work_queue.get_nowait()
+                except queue.Empty:
+                    break
+                if work_item is not None:
+                    work_item.future.set_exception(BrokenThreadPool(self._broken))
 
     def shutdown(self, wait=True):
         with self._shutdown_lock:
