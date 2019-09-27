@@ -7,12 +7,12 @@ stages:
     if: type = push AND tag =~ ^\d+\.\d+\.\d+
 
 jobs:
-  fast_finish: true
   include:
     - env: TOXENV=pypy
       python: pypy
 
     - env: TOXENV=py26
+      dist: trusty
       python: "2.6"
 
     - env: TOXENV=py27
