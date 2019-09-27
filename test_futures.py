@@ -217,7 +217,7 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
             sem.release()
         self.executor.shutdown()
         for t in self.executor._threads:
-            t.join()
+            t.join(5)
 
     def test_context_manager_shutdown(self):
         with futures.ThreadPoolExecutor(max_workers=5) as e:
@@ -226,7 +226,7 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
                              [5, 4, 3, 2, 1, 0, 1, 2, 3, 4])
 
         for t in executor._threads:
-            t.join()
+            t.join(5)
 
     def test_del_shutdown(self):
         executor = futures.ThreadPoolExecutor(max_workers=5)
@@ -234,9 +234,10 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
         threads = executor._threads
         del executor
         gc.collect()
+        gc.collect()
 
         for t in threads:
-            t.join()
+            t.join(5)
 
     def test_thread_names_assigned(self):
         executor = futures.ThreadPoolExecutor(
@@ -245,10 +246,11 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
         threads = executor._threads
         del executor
         gc.collect()
+        gc.collect()
 
         for t in threads:
             self.assertRegexpMatches(t.name, r'^SpecialPool_[0-4]$')
-            t.join()
+            t.join(5)
 
     def test_thread_names_default(self):
         executor = futures.ThreadPoolExecutor(max_workers=5)
@@ -256,12 +258,13 @@ class ThreadPoolShutdownTest(ThreadPoolMixin, ExecutorShutdownTest):
         threads = executor._threads
         del executor
         gc.collect()
+        gc.collect()
 
         for t in threads:
             # Ensure that our default name is reasonably sane and unique when
             # no thread_name_prefix was supplied.
             self.assertRegexpMatches(t.name, r'ThreadPoolExecutor-\d+_[0-4]$')
-            t.join()
+            t.join(5)
 
 
 class ProcessPoolShutdownTest(ProcessPoolMixin, ExecutorShutdownTest):
@@ -277,7 +280,7 @@ class ProcessPoolShutdownTest(ProcessPoolMixin, ExecutorShutdownTest):
         self.executor.shutdown()
 
         for p in processes:
-            p.join()
+            p.join(5)
 
     def test_context_manager_shutdown(self):
         with futures.ProcessPoolExecutor(max_workers=5) as e:
@@ -286,7 +289,7 @@ class ProcessPoolShutdownTest(ProcessPoolMixin, ExecutorShutdownTest):
                              [5, 4, 3, 2, 1, 0, 1, 2, 3, 4])
 
         for p in processes:
-            p.join()
+            p.join(5)
 
     def test_del_shutdown(self):
         executor = futures.ProcessPoolExecutor(max_workers=5)
@@ -295,10 +298,11 @@ class ProcessPoolShutdownTest(ProcessPoolMixin, ExecutorShutdownTest):
         processes = executor._processes
         del executor
         gc.collect()
+        gc.collect()
 
-        queue_management_thread.join()
+        queue_management_thread.join(5)
         for p in processes:
-            p.join()
+            p.join(5)
 
 
 class WaitTests(unittest.TestCase):
