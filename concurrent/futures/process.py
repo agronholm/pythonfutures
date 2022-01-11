@@ -57,7 +57,7 @@ __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 # interpreter to exit when there are still idle processes in a
 # ProcessPoolExecutor's process pool (i.e. shutdown() was not called). However,
 # allowing workers to die with the interpreter has two undesirable properties:
-#   - The workers would still be running during interpretor shutdown,
+#   - The workers would still be running during interpreter shutdown,
 #     meaning that they would fail in unpredictable ways.
 #   - The workers could be killed while evaluating a work item, which could
 #     be bad if the callable being evaluated has external side-effects e.g.
@@ -352,7 +352,7 @@ class ProcessPoolExecutor(_base.Executor):
             self._result_queue.put(None)
             if wait:
                 self._queue_management_thread.join(sys.maxint)
-        # To reduce the risk of openning too many files, remove references to
+        # To reduce the risk of opening too many files, remove references to
         # objects that use file descriptors.
         self._queue_management_thread = None
         self._call_queue = None
