@@ -1,5 +1,5 @@
-UNRELEASED
-==========
+3.4.0
+=====
 
 - Backported bpo-21423: Add an initializer argument to {Process,Thread}PoolExecutor
   (only ThreadPoolExecutor for now; PR by Fahrzin Hemmati)
