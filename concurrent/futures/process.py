@@ -105,7 +105,7 @@ class _CallItem(object):
         self.args = args
         self.kwargs = kwargs
 
-def _process_worker(call_queue, result_queue):
+def _process_worker(call_queue, result_queue, initializer, initargs):
     """Evaluates calls from call_queue and places the results in result_queue.
 
     This worker is run in a separate process.
@@ -117,7 +117,17 @@ def _process_worker(call_queue, result_queue):
             to by the worker.
         shutdown: A multiprocessing.Event that will be set as a signal to the
             worker that it should exit when call_queue is empty.
+        initializer: A callable initializer, or None
+        initargs: A tuple of args for the initializer
     """
+    if initializer is not None:
+        try:
+            initializer(*initargs)
+        except BaseException:
+            _base.LOGGER.critical('Exception in initializer:', exc_info=True)
+            # The parent will notice that the process stopped and
+            # mark the pool broken
+            return
     while True:
         call_item = call_queue.get(block=True)
         if call_item is None:
@@ -218,6 +228,14 @@ def _queue_management_worker(executor_reference,
             del work_item
         # Check whether we should start shutting down.
         executor = executor_reference()
+        if executor is not None and not _shutdown:
+            all_alive = all(p.is_alive() for p in processes)
+            if not all_alive:
+                executor._broken = ('A child process terminated '
+                                    'abruptly, the process pool is not '
+                                    'usable anymore')
+                executor._shutdown_thread = True
+                executor = None
         # No more work items can be added if:
         #   - The interpreter is shutting down OR
         #   - The executor that owns this worker has been collected OR
@@ -263,14 +281,23 @@ def _check_system_limits():
     raise NotImplementedError(_system_limited)
 
 
+class BrokenProcessPool(_base.BrokenExecutor):
+    """
+    Raised when a process in a ProcessPoolExecutor terminated abruptly
+    while a future was in the running state.
+    """
+
+
 class ProcessPoolExecutor(_base.Executor):
-    def __init__(self, max_workers=None):
+    def __init__(self, max_workers=None, initializer=None, initargs=()):
         """Initializes a new ProcessPoolExecutor instance.
 
         Args:
             max_workers: The maximum number of processes that can be used to
                 execute the given calls. If None or not given then as many
                 worker processes will be created as the machine has processors.
+            initializer: An callable used to initialize worker processes.
+            initargs: A tuple of arguments to pass to the initializer.
         """
         _check_system_limits()
 
@@ -281,6 +308,11 @@ class ProcessPoolExecutor(_base.Executor):
                 raise ValueError("max_workers must be greater than 0")
 
             self._max_workers = max_workers
+
+        if initializer is not None and not callable(initializer):
+            raise TypeError("initializer must be a callable")
+        self._initializer = initializer
+        self._initargs = initargs
 
         # Make the call queue slightly larger than the number of processes to
         # prevent the worker processes from idling. But don't make it too big
@@ -295,6 +327,7 @@ class ProcessPoolExecutor(_base.Executor):
         # Shutdown is a two-step process.
         self._shutdown_thread = False
         self._shutdown_lock = threading.Lock()
+        self._broken = False
         self._queue_count = 0
         self._pending_work_items = {}
 
@@ -321,12 +354,16 @@ class ProcessPoolExecutor(_base.Executor):
             p = multiprocessing.Process(
                     target=_process_worker,
                     args=(self._call_queue,
-                          self._result_queue))
+                          self._result_queue,
+                          self._initializer,
+                          self._initargs))
             p.start()
             self._processes.add(p)
 
     def submit(self, fn, *args, **kwargs):
         with self._shutdown_lock:
+            if self._broken:
+                raise BrokenProcessPool(self._broken)
             if self._shutdown_thread:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 

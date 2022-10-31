@@ -110,9 +110,16 @@ And:
     executor = ThreadPoolExecutor(max_workers=1)
     executor.submit(wait_on_future)
 
-.. class:: ThreadPoolExecutor(max_workers)
+.. class:: ThreadPoolExecutor(max_workers, thread_name_prefix='', initializer=None, initargs=())
 
-   Executes calls asynchronously using a pool of at most *max_workers* threads.
+   An :class:`Executor` subclass that uses a pool of at most *max_workers*
+   threads to execute calls asynchronously.
+
+   *initializer* is an optional callable that is called at the start of
+   each worker thread; *initargs* is a tuple of arguments passed to the
+   initializer.  Should *initializer* raise an exception, all currently
+   pending jobs will raise a :exc:`~concurrent.futures.thread.BrokenThreadPool`,
+   as well any attempt to submit more jobs to the pool.
 
 .. _threadpoolexecutor-example:
 
@@ -156,11 +163,17 @@ only picklable objects can be executed and returned.
 Calling :class:`Executor` or :class:`Future` methods from a callable submitted
 to a :class:`ProcessPoolExecutor` will result in deadlock.
 
-.. class:: ProcessPoolExecutor(max_workers=None)
+.. class:: ProcessPoolExecutor(max_workers=None, initializer=None, initargs=())
 
    Executes calls asynchronously using a pool of at most *max_workers*
    processes. If *max_workers* is ``None`` or not given then as many worker
    processes will be created as the machine has processors.
+
+   *initializer* is an optional callable that is called at the start of
+   each worker process; *initargs* is a tuple of arguments passed to the
+   initializer.  Should *initializer* raise an exception, all currently
+   pending jobs will raise a :exc:`~concurrent.futures.thread.BrokenThreadPool`,
+   as well any attempt to submit more jobs to the pool.
 
 .. _processpoolexecutor-example:
 
@@ -345,3 +358,39 @@ Module Functions
    original call to :func:`as_completed`.  *timeout* can be an int or float.
    If *timeout* is not specified or ``None``, there is no limit to the wait
    time.
+
+Exception classes
+-----------------
+
+.. currentmodule:: concurrent.futures
+
+.. exception:: CancelledError
+
+   Raised when a future is cancelled.
+
+.. exception:: TimeoutError
+
+   Raised when a future operation exceeds the given timeout.
+
+.. exception:: BrokenExecutor
+
+   Derived from :exc:`RuntimeError`, this exception class is raised
+   when an executor is broken for some reason, and cannot be used
+   to submit or execute new tasks.
+
+.. currentmodule:: concurrent.futures.thread
+
+.. exception:: BrokenThreadPool
+
+   Derived from :exc:`~concurrent.futures.BrokenExecutor`, this exception
+   class is raised when one of the workers of a :class:`ThreadPoolExecutor`
+   has failed initializing.
+
+.. currentmodule:: concurrent.futures.process
+
+.. exception:: BrokenProcessPool
+
+   Derived from :exc:`~concurrent.futures.BrokenExecutor` (formerly
+   :exc:`RuntimeError`), this exception class is raised when one of the
+   workers of a :class:`ProcessPoolExecutor` has terminated in a non-clean
+   fashion (for example, if it was killed from the outside).
